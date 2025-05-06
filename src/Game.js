@@ -1,5 +1,5 @@
 // Import Matter.js modules used in start()
-const { Engine, Render, Runner, World, Bodies, Events, Query } = Matter;
+const { Engine, Render, Runner, World, Bodies, Events, Query, Composite } = Matter;
 
 const Game = {
     // --- Constants ---
@@ -12,6 +12,7 @@ const Game = {
     // Calculated Dimensions (in pixels)
     get PLAY_AREA_WIDTH() { return this.GRID_WIDTH_BLOCKS * this.BLOCK_SIZE; }, // e.g., 300
     get PLAY_AREA_HEIGHT() { return this.GRID_HEIGHT_BLOCKS * this.BLOCK_SIZE; }, // e.g., 600
+    get PLAY_AREA_Y_OFFSET() { return this.CANVAS_EXTRA_HEIGHT_BLOCKS * this.BLOCK_SIZE; }, // Y offset where play area starts
     get CANVAS_WIDTH() { return this.PLAY_AREA_WIDTH; }, // Canvas width matches play area width
     get CANVAS_HEIGHT() { return (this.GRID_HEIGHT_BLOCKS + this.CANVAS_EXTRA_HEIGHT_BLOCKS) * this.BLOCK_SIZE; }, // e.g., 660
     get DETECTION_ZONE_HEIGHT() { return this.PLAY_AREA_HEIGHT / this.DETECTION_ZONES_COUNT; }, // e.g., 60
@@ -30,6 +31,10 @@ const Game = {
         J: '#0000FF', // Blue
         L: '#FFA500'  // Orange
     },
+
+    // Background Stripe Colors (Slightly adjusted for visibility)
+    STRIPE_COLOR_1: '#e8e8e8', // Lighter gray
+    STRIPE_COLOR_2: '#d8d8d8', // Darker gray
 
     // --- Game State (will be expanded later) ---
     currentBlock: null,
@@ -66,17 +71,70 @@ const Game = {
         // Enable sleeping
         this.engine.enableSleeping = true; // Important for isSleeping detection
 
-        // 2. Create Renderer
+        // 2. Create Renderer (Modified options.background)
         const canvasElement = document.getElementById('game-canvas');
         this.render = Render.create({
-            element: document.body, // Render target element
+            element: document.body,
             canvas: canvasElement,
             engine: this.engine,
             options: {
                 width: this.CANVAS_WIDTH,
                 height: this.CANVAS_HEIGHT,
                 wireframes: false,
-                background: '#fafafa'
+                background: 'transparent', // Set to transparent
+                // hasBounds: true, // Optional: ensure renderer covers canvas if scaled
+            }
+        });
+
+        // --- Setup Background Rendering (Zebra Stripes) --- (Modified clearRect)
+        Events.on(this.render, 'beforeRender', (event) => {
+            const context = this.render.context;
+            const canvas = this.render.canvas;
+
+            // Clear the ENTIRE canvas before drawing stripes
+            context.clearRect(0, 0, canvas.width, canvas.height);
+
+            // Draw stripes only within the play area
+            for (let i = 0; i < this.DETECTION_ZONES_COUNT; i++) {
+                const zoneY = this.PLAY_AREA_Y_OFFSET + i * this.DETECTION_ZONE_HEIGHT;
+                context.fillStyle = (i % 2 === 0) ? this.STRIPE_COLOR_1 : this.STRIPE_COLOR_2;
+                context.fillRect(
+                    0,                      // x start
+                    zoneY,                  // y start
+                    this.CANVAS_WIDTH,      // width
+                    this.DETECTION_ZONE_HEIGHT // height
+                );
+            }
+        });
+
+        // --- 添加自定义方块渲染效果 ---
+        Events.on(this.render, 'afterRender', (event) => {
+            const context = this.render.context;
+            const bodies = Composite.allBodies(this.world);
+            
+            // 遍历所有物体
+            for (let i = 0; i < bodies.length; i++) {
+                const body = bodies[i];
+                
+                // 检查是否为 T 型方块的一部分并且有内部图案标记
+                if (body.hasInternalPattern) {
+                    const pos = body.position;
+                    const halfSize = this.BLOCK_SIZE / 2;
+                    
+                    // 绘制 T 型方块的内部花纹
+                    context.save();
+                    context.translate(pos.x, pos.y);
+                    context.rotate(body.angle);
+                    
+                    // 绘制内部图案 (例如: 简单的 "T" 字母)
+                    context.fillStyle = '#ffffff80'; // 半透明白色
+                    context.font = `${this.BLOCK_SIZE * 0.7}px Arial`;
+                    context.textAlign = 'center';
+                    context.textBaseline = 'middle';
+                    context.fillText('T', 0, 0);
+                    
+                    context.restore();
+                }
             }
         });
 

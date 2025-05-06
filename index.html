@@ -23,15 +23,15 @@
   <canvas id="game-canvas"></canvas>
 
   <!-- Include poly-decomp library FIRST -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/poly-decomp/0.3.0/poly-decomp.min.js"></script>
+  <script src="src/decomp.min.js"></script>
   <!-- Include Matter.js library from CDN -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.19.0/matter.min.js"></script>
+  <script src="src/matter.min.js"></script>
 
   <!-- Include our Game settings and Tetromino definitions -->
   <!-- IMPORTANT: Game.js must be included before Tetromino.js -->
-  <script src="src/Game.js"></script>
-  <script src="src/Tetromino.js"></script>
-  <script src="src/Controls.js"></script>
+  <script src="src/Game.js" defer></script>
+  <script src="src/Tetromino.js" defer></script>
+  <script src="src/Controls.js" defer></script>
 
   <script>
     // Add event listener to the start button
