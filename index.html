@@ -2,13 +2,24 @@
 <html>
 <head>
   <title>物理俄罗斯方块 (Matter.js)</title>
+  <script src="https://cdn.tailwindcss.com"></script>
   <style>
     body { margin: 0; overflow: hidden; background-color: #f0f0f0; } /* Basic styling */
     canvas { display: block; margin: auto; background-color: #fff; } /* Center canvas */
+    /* Initially hide the canvas */
+    #game-canvas { display: none; }
   </style>
 </head>
 <body>
-  <!-- Canvas element for rendering -->
+  <!-- Start Screen -->
+  <div id="start-screen" class="absolute inset-0 bg-gray-800 flex flex-col justify-center items-center z-10">
+    <h1 class="text-4xl font-bold text-white mb-8">物理俄罗斯方块</h1>
+    <button id="start-button" class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-4 px-8 rounded text-2xl">
+      开始游戏 (Start)
+    </button>
+  </div>
+
+  <!-- Canvas element for rendering (initially hidden) -->
   <canvas id="game-canvas"></canvas>
 
   <!-- Include Matter.js library from CDN -->
@@ -20,62 +31,16 @@
   <script src="src/Tetromino.js"></script>
 
   <script>
-    // --- Matter.js Modules ---
-    const Engine = Matter.Engine;
-    const Render = Matter.Render;
-    const Runner = Matter.Runner;
-    const Bodies = Matter.Bodies; // We'll use this later
-    const World = Matter.World;   // We'll use this later
-    const Composite = Matter.Composite; // We'll use this later
+    // Add event listener to the start button
+    document.getElementById('start-button').addEventListener('click', () => {
+      // Hide the start screen
+      document.getElementById('start-screen').style.display = 'none';
 
-    // --- Game Setup ---
-    const canvasWidth = 400; // Example width, adjust as needed
-    const canvasHeight = 600; // Example height, adjust as needed
-
-    // 1. Create Engine
-    const engine = Engine.create();
-    const world = engine.world; // Get the world instance
-
-    // Set gravity from Game settings
-    engine.world.gravity.x = Game.gravity.x;
-    engine.world.gravity.y = Game.gravity.y;
-    engine.timing.timeScale = Game.timeScale; // Apply timescale if needed
-
-    // 2. Create Renderer
-    const render = Render.create({
-      element: document.body, // Render target element
-      canvas: document.getElementById('game-canvas'), // Use our canvas
-      engine: engine,
-      options: {
-        width: canvasWidth,
-        height: canvasHeight,
-        wireframes: false, // Show shapes with colors, not just outlines
-        background: '#fafafa' // Light grey background for the canvas
-      }
+      // Initialize and start the game
+      Game.start();
     });
 
-    // 3. Create Runner
-    const runner = Runner.create();
-
-    // 4. Run the engine and renderer
-    Render.run(render);
-    Runner.run(runner, engine);
-
-    console.log("Matter.js setup complete. Engine and Renderer running.");
-
-    // --- Add Initial Game Objects ---
-
-    // Create the first Tetromino
-    const firstBlock = Tetromino.createRandomTetromino();
-
-    // Add the block to the world
-    World.add(world, firstBlock);
-    Game.currentBlock = firstBlock; // Keep track of the current block
-
-    console.log("First Tetromino added:", firstBlock.label);
-
-    // --- We will add boundaries and controls later ---
-
+    // No other setup code needed here anymore, it's all in Game.start()
   </script>
 </body>
 </html> 
