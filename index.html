@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>物理俄罗斯方块 (Matter.js)</title>
+  <style>
+    body { margin: 0; overflow: hidden; background-color: #f0f0f0; } /* Basic styling */
+    canvas { display: block; margin: auto; background-color: #fff; } /* Center canvas */
+  </style>
+</head>
+<body>
+  <!-- Canvas element for rendering -->
+  <canvas id="game-canvas"></canvas>
+
+  <!-- Include Matter.js library from CDN -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.19.0/matter.min.js"></script>
+
+  <!-- Include our Game settings and Tetromino definitions -->
+  <!-- IMPORTANT: Game.js must be included before Tetromino.js -->
+  <script src="src/Game.js"></script>
+  <script src="src/Tetromino.js"></script>
+
+  <script>
+    // --- Matter.js Modules ---
+    const Engine = Matter.Engine;
+    const Render = Matter.Render;
+    const Runner = Matter.Runner;
+    const Bodies = Matter.Bodies; // We'll use this later
+    const World = Matter.World;   // We'll use this later
+    const Composite = Matter.Composite; // We'll use this later
+
+    // --- Game Setup ---
+    const canvasWidth = 400; // Example width, adjust as needed
+    const canvasHeight = 600; // Example height, adjust as needed
+
+    // 1. Create Engine
+    const engine = Engine.create();
+    const world = engine.world; // Get the world instance
+
+    // Set gravity from Game settings
+    engine.world.gravity.x = Game.gravity.x;
+    engine.world.gravity.y = Game.gravity.y;
+    engine.timing.timeScale = Game.timeScale; // Apply timescale if needed
+
+    // 2. Create Renderer
+    const render = Render.create({
+      element: document.body, // Render target element
+      canvas: document.getElementById('game-canvas'), // Use our canvas
+      engine: engine,
+      options: {
+        width: canvasWidth,
+        height: canvasHeight,
+        wireframes: false, // Show shapes with colors, not just outlines
+        background: '#fafafa' // Light grey background for the canvas
+      }
+    });
+
+    // 3. Create Runner
+    const runner = Runner.create();
+
+    // 4. Run the engine and renderer
+    Render.run(render);
+    Runner.run(runner, engine);
+
+    console.log("Matter.js setup complete. Engine and Renderer running.");
+
+    // --- Add Initial Game Objects ---
+
+    // Create the first Tetromino
+    const firstBlock = Tetromino.createRandomTetromino();
+
+    // Add the block to the world
+    World.add(world, firstBlock);
+    Game.currentBlock = firstBlock; // Keep track of the current block
+
+    console.log("First Tetromino added:", firstBlock.label);
+
+    // --- We will add boundaries and controls later ---
+
+  </script>
+</body>
+</html> 
