@@ -112,6 +112,9 @@ const Game = {
         // 6. Make canvas visible
         canvasElement.style.display = 'block';
 
+        // 7. Setup Controls
+        Controls.setupControls();
+
         console.log("Game Started!");
     }
 };
