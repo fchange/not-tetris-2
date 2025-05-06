@@ -1,5 +1,5 @@
 // Import Matter.js modules used in start()
-const { Engine, Render, Runner, World, Bodies } = Matter;
+const { Engine, Render, Runner, World, Bodies, Events, Query } = Matter;
 
 const Game = {
     // --- Constants ---
@@ -36,6 +36,7 @@ const Game = {
     score: 0,
     difficulty: 1,
     isGameOver: false,
+    topBoundary: null, // Added property to store the top boundary
 
     // --- Physics Engine Instances ---
     engine: null,
@@ -62,6 +63,9 @@ const Game = {
         this.world.gravity.y = this.gravity.y;
         this.engine.timing.timeScale = this.timeScale;
 
+        // Enable sleeping
+        this.engine.enableSleeping = true; // Important for isSleeping detection
+
         // 2. Create Renderer
         const canvasElement = document.getElementById('game-canvas');
         this.render = Render.create({
@@ -85,6 +89,17 @@ const Game = {
             isStatic: true,
             render: { fillStyle: '#333' } // Dark grey walls
         };
+        const topBoundaryY = -5; // Position of the invisible top boundary
+        const topBoundaryThickness = 10;
+
+        // Create and store the top boundary body
+        this.topBoundary = Bodies.rectangle(this.CANVAS_WIDTH / 2, topBoundaryY, this.CANVAS_WIDTH, topBoundaryThickness, {
+            ...wallOptions,
+            isSensor: true,
+            label: 'boundary-top',
+            render: { visible: false }
+        });
+
         World.add(this.world, [
             // Ground (a bit thicker)
             Bodies.rectangle(this.CANVAS_WIDTH / 2, this.CANVAS_HEIGHT, this.CANVAS_WIDTH, 10, { ...wallOptions, label: 'ground' }),
@@ -92,30 +107,93 @@ const Game = {
             Bodies.rectangle(0, this.CANVAS_HEIGHT / 2, 10, this.CANVAS_HEIGHT, { ...wallOptions, label: 'wall-left' }),
             // Right Wall
             Bodies.rectangle(this.CANVAS_WIDTH, this.CANVAS_HEIGHT / 2, 10, this.CANVAS_HEIGHT, { ...wallOptions, label: 'wall-right' }),
-            // Top Boundary (Invisible, slightly above canvas top)
-            Bodies.rectangle(this.CANVAS_WIDTH / 2, -5, this.CANVAS_WIDTH, 10, { ...wallOptions, isSensor: true, label: 'boundary-top', render: { visible: false } })
+            this.topBoundary // Add the stored top boundary to the world
         ]);
         console.log("Boundaries added.");
 
-
         // --- Add the first Tetromino ---
-        const firstBlock = Tetromino.createRandomTetromino(this.SPAWN_X(), this.SPAWN_Y());
-        World.add(this.world, firstBlock);
-        this.currentBlock = firstBlock;
-        console.log("First Tetromino added:", firstBlock.label);
+        this.spawnNewBlock(); // Use a dedicated function
 
-        // 5. Run the engine and renderer
+        // 5. Run the engine and renderer -> Move this later
+        // Render.run(this.render);
+        // Runner.run(this.runner, this.engine);
+        // console.log("Engine and Renderer running.");
+
+        // 6. Setup Event Listeners (Collision for Game Over, Update for Spawning)
+        this.setupEventListeners(); // New function call
+
+        // 7. Run the engine and renderer (Moved here)
         Render.run(this.render);
         Runner.run(this.runner, this.engine);
         console.log("Engine and Renderer running.");
 
-        // 6. Make canvas visible
+        // 8. Make canvas visible
         canvasElement.style.display = 'block';
 
-        // 7. Setup Controls
+        // 9. Setup Controls
         Controls.setupControls();
 
         console.log("Game Started!");
+    },
+
+    // Function to spawn a new block
+    spawnNewBlock: function() {
+        if (this.isGameOver) return; // Don't spawn if game is over
+
+        console.log("Attempting to spawn new block...");
+        const newBlock = Tetromino.createRandomTetromino(this.SPAWN_X(), this.SPAWN_Y());
+        World.add(this.world, newBlock);
+        this.currentBlock = newBlock;
+        console.log("New Tetromino added:", newBlock.label);
+
+        // Optional: Slightly wake up the block if sleeping is too aggressive initially
+        // Matter.Sleeping.set(newBlock, false);
+    },
+
+    // Function to handle game over
+    handleGameOver: function() {
+        console.log("GAME OVER!");
+        this.isGameOver = true;
+        Runner.stop(this.runner); // Stop the physics simulation
+        // Optional: Display game over message on screen
+        // You could draw text on the canvas or update an HTML element
+        const ctx = this.render.context;
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+        ctx.fillRect(0, this.CANVAS_HEIGHT / 3, this.CANVAS_WIDTH, this.CANVAS_HEIGHT / 3);
+        ctx.font = '48px sans-serif';
+        ctx.fillStyle = 'white';
+        ctx.textAlign = 'center';
+        ctx.fillText('GAME OVER', this.CANVAS_WIDTH / 2, this.CANVAS_HEIGHT / 2);
+    },
+
+    // Setup Matter.js event listeners
+    setupEventListeners: function() {
+        // --- Remove the 'collisionStart' listener for game over ---
+        // Events.on(this.engine, 'collisionStart', (event) => { ... }); // Removed
+
+        // --- Spawning Next Block & Game Over Check (Modified 'afterUpdate') ---
+        Events.on(this.engine, 'afterUpdate', () => {
+            if (this.isGameOver) return; // Skip if game is already over
+
+            // Check if the current block exists and is sleeping
+            if (this.currentBlock && this.currentBlock.isSleeping) {
+                const sleepingBlock = this.currentBlock; // Store reference before potentially nulling
+                console.log(`Block ${sleepingBlock.label} is sleeping.`);
+
+                // Check for collision with top boundary *now* that it's sleeping
+                const collisions = Query.collides(sleepingBlock, [this.topBoundary]);
+
+                if (collisions.length > 0) {
+                    // It's sleeping AND touching the top boundary sensor -> Game Over
+                    console.log(`Block ${sleepingBlock.label} stopped touching the top boundary. GAME OVER.`);
+                    this.handleGameOver();
+                } else {
+                    // It's sleeping but NOT touching the top boundary -> Safe to spawn next
+                    this.currentBlock = null; // Mark current block as settled
+                    this.spawnNewBlock();   // Spawn the next one
+                }
+            }
+        });
     }
 };
 
