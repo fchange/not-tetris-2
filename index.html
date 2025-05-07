@@ -17,8 +17,16 @@
     </button>
   </div>
 
-  <!-- Canvas element for rendering (initially hidden) -->
-  <canvas id="game-canvas"></canvas>
+  <!-- Game container with canvas and progress bars -->
+  <div class="game-container">
+    <!-- Canvas element for rendering (initially hidden) -->
+    <canvas id="game-canvas"></canvas>
+    
+    <!-- Container for progress bars -->
+    <div id="progress-bars-container">
+      <!-- Progress bars will be dynamically added here -->
+    </div>
+  </div>
 
   <!-- Include poly-decomp library FIRST -->
   <script src="src/decomp.min.js"></script>

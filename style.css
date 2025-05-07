@@ -9,6 +9,13 @@ body {
   min-height: 100vh; /* 使用视口高度确保满屏 */
 }
 
+/* Game container styles */
+.game-container {
+  position: relative;
+  display: flex;
+  flex-direction: row;
+}
+
 /* Center canvas */
 canvas { 
   display: block; 
@@ -19,6 +26,38 @@ canvas {
 /* Initially hide the canvas */
 #game-canvas { 
   display: none; 
+}
+
+/* Progress bars container */
+#progress-bars-container {
+  display: flex;
+  flex-direction: column;
+  width: 60px; /* Progress bar background width as specified */
+  height: 100%;
+  margin-left: 10px; /* Space between game canvas and progress bars */
+  justify-content: space-between;
+}
+
+/* Individual progress bar styles */
+.progress-bar {
+  width: 100%;
+  height: calc(100% / 20); /* Divide by DETECTION_ZONES_COUNT */
+  background-color: #d0d0d0; /* Light grey background */
+  position: relative;
+  overflow: hidden;
+  box-sizing: border-box;
+  border: 1px solid #f0f0f0; /* Subtle border to separate bars */
+}
+
+/* Progress indicator */
+.progress-indicator {
+  position: absolute;
+  left: 0;
+  top: 0;
+  height: 100%;
+  background-color: #000000; /* Black fill color as specified */
+  width: 0%; /* Width will be dynamically set with JavaScript */
+  transition: width 0.2s ease; /* Smooth transition for updates */
 }
 
 /* Start screen styles */

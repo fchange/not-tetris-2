@@ -1,13 +1,14 @@
 // Import Matter.js modules used in start()
-const { Engine, Render, Runner, World, Bodies, Events, Query, Composite } = Matter;
+const { Engine, Render, Runner, World, Bodies, Events, Query, Composite, Body, Vector } = Matter;
 
 const Game = {
     // --- Constants ---
     BLOCK_SIZE: 30, // Size of a single square unit in pixels
     GRID_WIDTH_BLOCKS: 10, // Width of the play area in blocks
     GRID_HEIGHT_BLOCKS: 20, // Height of the play area in blocks
-    CANVAS_EXTRA_HEIGHT_BLOCKS: 2, // Extra space at the top for spawning
-    DETECTION_ZONES_COUNT: 10, // Number of horizontal detection zones
+    CANVAS_EXTRA_HEIGHT_BLOCKS: 0, // Extra space at the top for spawning
+    DETECTION_ZONES_COUNT: 20, // Number of horizontal detection zones
+    DETECTION_ZONE_FILL_THRESHOLD: 0.6, // 60% fill threshold for clearing
 
     // Calculated Dimensions (in pixels)
     get PLAY_AREA_WIDTH() { return this.GRID_WIDTH_BLOCKS * this.BLOCK_SIZE; }, // e.g., 300
@@ -42,6 +43,12 @@ const Game = {
     difficulty: 1,
     isGameOver: false,
     topBoundary: null, // Added property to store the top boundary
+    blocksSettled: false, // Flag to track when all blocks have settled
+    stripeZones: [], // Array to store the stripe zone bodies
+    
+    // Progress bars for detection zones
+    progressBars: [], // Array to store progress bar elements
+    zoneFillRatios: [], // Array to store fill ratios for each zone
 
     // --- Physics Engine Instances ---
     engine: null,
@@ -74,7 +81,7 @@ const Game = {
         // 2. Create Renderer (Modified options.background)
         const canvasElement = document.getElementById('game-canvas');
         this.render = Render.create({
-            element: document.body,
+            element: document.getElementById('game-canvas').parentNode,
             canvas: canvasElement,
             engine: this.engine,
             options: {
@@ -86,68 +93,95 @@ const Game = {
             }
         });
 
-        // --- Setup Background Rendering (Zebra Stripes) --- (Modified clearRect)
-        Events.on(this.render, 'beforeRender', (event) => {
-            const context = this.render.context;
-            const canvas = this.render.canvas;
-
-            // Clear the ENTIRE canvas before drawing stripes
-            context.clearRect(0, 0, canvas.width, canvas.height);
-
-            // Draw stripes only within the play area
-            for (let i = 0; i < this.DETECTION_ZONES_COUNT; i++) {
-                const zoneY = this.PLAY_AREA_Y_OFFSET + i * this.DETECTION_ZONE_HEIGHT;
-                context.fillStyle = (i % 2 === 0) ? this.STRIPE_COLOR_1 : this.STRIPE_COLOR_2;
-                context.fillRect(
-                    0,                      // x start
-                    zoneY,                  // y start
-                    this.CANVAS_WIDTH,      // width
-                    this.DETECTION_ZONE_HEIGHT // height
-                );
-            }
-        });
-
-        // --- 添加自定义方块渲染效果 ---
-        Events.on(this.render, 'afterRender', (event) => {
-            const context = this.render.context;
-            const bodies = Composite.allBodies(this.world);
-            
-            // 遍历所有物体
-            for (let i = 0; i < bodies.length; i++) {
-                const body = bodies[i];
-                
-                // 检查是否为 T 型方块的一部分并且有内部图案标记
-                if (body.hasInternalPattern) {
-                    const pos = body.position;
-                    const halfSize = this.BLOCK_SIZE / 2;
-                    
-                    // 绘制 T 型方块的内部花纹
-                    context.save();
-                    context.translate(pos.x, pos.y);
-                    context.rotate(body.angle);
-                    
-                    // 绘制内部图案 (例如: 简单的 "T" 字母)
-                    context.fillStyle = '#ffffff80'; // 半透明白色
-                    context.font = `${this.BLOCK_SIZE * 0.7}px Arial`;
-                    context.textAlign = 'center';
-                    context.textBaseline = 'middle';
-                    context.fillText('T', 0, 0);
-                    
-                    context.restore();
-                }
-            }
-        });
-
         // 3. Create Runner
         this.runner = Runner.create();
 
-        // 4. Initial Game Objects (Boundaries, first block, etc.)
-        // --- Add Boundaries (Step 3 from roadmap) ---
+        // 4. Prepare game environment (boundaries and background)
+        this.prepareEnvironment();
+        
+        // 5. Create progress bars
+        this.createProgressBars();
+
+        // 6. Add the first Tetromino
+        this.spawnNewBlock();
+
+        // 7. Setup Event Listeners (Collision for Game Over, Update for Spawning)
+        this.setupEventListeners();
+
+        // 8. Run the engine and renderer
+        Render.run(this.render);
+        Runner.run(this.runner, this.engine);
+        console.log("Engine and Renderer running.");
+
+        // 9. Make canvas visible
+        canvasElement.style.display = 'block';
+
+        // 10. Setup Controls
+        Controls.setupControls();
+
+        console.log("Game Started!");
+    },
+
+    // Function to create progress bars for each detection zone
+    createProgressBars: function() {
+        console.log("Creating progress bars for detection zones...");
+        
+        // Clear existing progress bars if any
+        this.progressBars = [];
+        this.zoneFillRatios = new Array(this.DETECTION_ZONES_COUNT).fill(0);
+        
+        // Get the container for progress bars
+        const container = document.getElementById('progress-bars-container');
+        container.innerHTML = ''; // Clear container
+        
+        // Set container height to match canvas height
+        container.style.height = this.CANVAS_HEIGHT + 'px';
+        
+        // Create a progress bar for each detection zone
+        for (let i = 0; i < this.DETECTION_ZONES_COUNT; i++) {
+            // Create progress bar container
+            const progressBar = document.createElement('div');
+            progressBar.className = 'progress-bar';
+            progressBar.style.height = this.DETECTION_ZONE_HEIGHT + 'px';
+            
+            // Create progress indicator (the part that fills)
+            const progressIndicator = document.createElement('div');
+            progressIndicator.className = 'progress-indicator';
+            progressIndicator.style.width = '0%'; // Start with 0% fill
+            
+            // Add indicator to progress bar
+            progressBar.appendChild(progressIndicator);
+            
+            // Add progress bar to container
+            container.appendChild(progressBar);
+            
+            // Store reference to progress bar element
+            this.progressBars.push(progressIndicator);
+        }
+        
+        console.log(`Created ${this.progressBars.length} progress bars`);
+    },
+    
+    // Function to update progress bar for a specific zone
+    updateProgressBar: function(zoneIndex, fillRatio) {
+        if (zoneIndex < 0 || zoneIndex >= this.progressBars.length) return;
+        
+        // Store the fill ratio
+        this.zoneFillRatios[zoneIndex] = fillRatio;
+        
+        // Update the progress bar width
+        const percentage = Math.min(Math.max(fillRatio * 100, 0), 100); // Ensure between 0-100%
+        this.progressBars[zoneIndex].style.width = percentage + '%';
+    },
+
+    // Function to prepare game environment (boundaries and detection zone background)
+    prepareEnvironment: function() {
+        // --- Setup boundaries ---
         const wallOptions = {
             isStatic: true,
             render: { fillStyle: '#333' } // Dark grey walls
         };
-        const topBoundaryY = 0; // 将位置调整到画布顶部可见位置
+        const topBoundaryY = 0; // 位于画布顶部
         const topBoundaryThickness = 4; // 稍微加粗边框
 
         // Create and store the top boundary body
@@ -176,29 +210,51 @@ const Game = {
         
         console.log("Boundaries added.");
 
-        // --- Add the first Tetromino ---
-        this.spawnNewBlock(); // Use a dedicated function
-
-        // 5. Run the engine and renderer -> Move this later
-        // Render.run(this.render);
-        // Runner.run(this.runner, this.engine);
-        // console.log("Engine and Renderer running.");
-
-        // 6. Setup Event Listeners (Collision for Game Over, Update for Spawning)
-        this.setupEventListeners(); // New function call
-
-        // 7. Run the engine and renderer (Moved here)
-        Render.run(this.render);
-        Runner.run(this.runner, this.engine);
-        console.log("Engine and Renderer running.");
-
-        // 8. Make canvas visible
-        canvasElement.style.display = 'block';
-
-        // 9. Setup Controls
-        Controls.setupControls();
-
-        console.log("Game Started!");
+        // --- Create Background Stripes as Physical Bodies ---
+        this.createBackgroundStripes();
+    },
+    
+    // Create background stripes as physical bodies
+    createBackgroundStripes: function() {
+        console.log("Creating background stripes as physical bodies...");
+        
+        // Create detection zones as physical bodies
+        for (let i = 0; i < this.DETECTION_ZONES_COUNT; i++) {
+            const zoneY = this.PLAY_AREA_Y_OFFSET + i * this.DETECTION_ZONE_HEIGHT;
+            // Position is at center of zone
+            const zoneCenterY = zoneY + (this.DETECTION_ZONE_HEIGHT / 2);
+            
+            const stripeOptions = {
+                isStatic: true,
+                isSensor: true, // Don't interact with other bodies
+                collisionFilter: {
+                    category: 0x0002, // Custom category for background
+                    mask: 0x0000 // Don't collide with anything
+                },
+                render: {
+                    fillStyle: (i % 2 === 0) ? this.STRIPE_COLOR_1 : this.STRIPE_COLOR_2,
+                    opacity: 1.0
+                },
+                label: `stripe-zone-${i}`
+            };
+            
+            // Create a rectangle body for the stripe
+            const stripe = Bodies.rectangle(
+                this.CANVAS_WIDTH / 2, // center x
+                zoneCenterY,           // center y
+                this.CANVAS_WIDTH,     // width
+                this.DETECTION_ZONE_HEIGHT, // height
+                stripeOptions
+            );
+            
+            // Add to the world
+            World.add(this.world, stripe);
+            
+            // Store reference to stripe
+            this.stripeZones.push(stripe);
+        }
+        
+        console.log(`Created ${this.stripeZones.length} background stripe bodies`);
     },
 
     // Function to spawn a new block
@@ -221,7 +277,6 @@ const Game = {
         this.isGameOver = true;
         Runner.stop(this.runner); // Stop the physics simulation
         // Optional: Display game over message on screen
-        // You could draw text on the canvas or update an HTML element
         const ctx = this.render.context;
         ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
         ctx.fillRect(0, this.CANVAS_HEIGHT / 3, this.CANVAS_WIDTH, this.CANVAS_HEIGHT / 3);
@@ -229,6 +284,254 @@ const Game = {
         ctx.fillStyle = 'white';
         ctx.textAlign = 'center';
         ctx.fillText('GAME OVER', this.CANVAS_WIDTH / 2, this.CANVAS_HEIGHT / 2);
+    },
+
+    // Check if all blocks (except the current one) are at rest
+    areAllBlocksSettled: function() {
+        const bodies = Composite.allBodies(this.world);
+        
+        for (let i = 0; i < bodies.length; i++) {
+            const body = bodies[i];
+            // Skip walls, boundaries, and current active block
+            if (body.isStatic || body === this.currentBlock) continue;
+            
+            // If any body is not sleeping, blocks are not settled
+            if (!body.isSleeping) {
+                return false;
+            }
+        }
+        
+        return true;
+    },
+
+    // Check detection zones for area coverage
+    checkDetectionZones: function() {
+        console.log("Checking detection zones...");
+        
+        // Calculate fill ratios even if blocks are not fully settled
+        // Only enforce the settled check for clearing zones
+        const allSettled = this.areAllBlocksSettled();
+        
+        // Process from bottom to top (more logical for Tetris)
+        for (let zoneIndex = this.DETECTION_ZONES_COUNT - 1; zoneIndex >= 0; zoneIndex--) {
+            const zoneY = this.PLAY_AREA_Y_OFFSET + zoneIndex * this.DETECTION_ZONE_HEIGHT;
+            const zoneTop = zoneY;
+            const zoneBottom = zoneY + this.DETECTION_ZONE_HEIGHT;
+            const zoneWidth = this.PLAY_AREA_WIDTH;
+            const zoneArea = zoneWidth * this.DETECTION_ZONE_HEIGHT;
+            
+            // Get all bodies (excluding walls/boundaries)
+            const bodies = Composite.allBodies(this.world).filter(body => 
+                !body.isStatic && 
+                !body.isSensor
+            );
+            
+            // Calculate covered area in this zone
+            let coveredArea = 0;
+            let bodiesInZone = [];
+            
+            for (let i = 0; i < bodies.length; i++) {
+                const body = bodies[i];
+                
+                // Skip the current active block when calculating fill ratios
+                if (body === this.currentBlock) continue;
+                
+                // Check if body is in this zone
+                if (this.isBodyInZone(body, zoneTop, zoneBottom)) {
+                    // Calculate area of body that's in this zone
+                    const areaInZone = this.calculateBodyAreaInZone(body, zoneTop, zoneBottom);
+                    coveredArea += areaInZone;
+                    
+                    // If any part of body is in this zone, add to list
+                    if (areaInZone > 0) {
+                        bodiesInZone.push(body);
+                    }
+                }
+            }
+            
+            // Check if zone is filled enough to clear
+            const fillRatio = coveredArea / zoneArea;
+            console.log(`Zone ${zoneIndex} fill ratio: ${fillRatio.toFixed(2)}`);
+            
+            // Update progress bar for this zone
+            this.updateProgressBar(zoneIndex, fillRatio);
+            
+            // Only clear zones if all blocks are settled
+            if (allSettled && fillRatio >= this.DETECTION_ZONE_FILL_THRESHOLD) {
+                console.log(`Zone ${zoneIndex} is full enough for clearing!`);
+                
+                // Clear this zone (remove bodies and add visual effect)
+                this.clearZone(zoneIndex, bodiesInZone);
+            }
+        }
+    },
+    
+    // Check if a body is in a specific zone
+    isBodyInZone: function(body, zoneTop, zoneBottom) {
+        // Using vertices to check if any part of the body is in the zone
+        for (const vertex of body.vertices) {
+            if (vertex.y >= zoneTop && vertex.y <= zoneBottom) {
+                return true;
+            }
+        }
+        
+        // Also check if a body completely covers the zone (no vertices in zone)
+        const highestY = Math.min(...body.vertices.map(v => v.y));
+        const lowestY = Math.max(...body.vertices.map(v => v.y));
+        
+        if (highestY < zoneTop && lowestY > zoneBottom) {
+            return true;
+        }
+        
+        return false;
+    },
+    
+    // Calculate the area of a body that's in a specific zone
+    calculateBodyAreaInZone: function(body, zoneTop, zoneBottom) {
+        // This is a simplified calculation - for more accuracy you might need
+        // a more complex polygon intersection algorithm
+        
+        // First, check if body is completely in the zone
+        const highestY = Math.min(...body.vertices.map(v => v.y));
+        const lowestY = Math.max(...body.vertices.map(v => v.y));
+        
+        if (highestY >= zoneTop && lowestY <= zoneBottom) {
+            // Body is completely in the zone - return its full area
+            return body.area;
+        }
+        
+        // For partly overlapping bodies, estimate the overlap area
+        // This is a rough approximation - could be improved
+        if (lowestY > zoneTop && highestY < zoneBottom) {
+            const totalHeight = lowestY - highestY;
+            const overlapTop = Math.max(zoneTop, highestY);
+            const overlapBottom = Math.min(zoneBottom, lowestY);
+            const overlapHeight = overlapBottom - overlapTop;
+            
+            // Approximate the area by height ratio
+            return body.area * (overlapHeight / totalHeight);
+        }
+        
+        return 0;
+    },
+    
+    // Clear a zone by removing bodies in it and creating new bodies as needed
+    clearZone: function(zoneIndex, bodiesInZone) {
+        const zoneY = this.PLAY_AREA_Y_OFFSET + zoneIndex * this.DETECTION_ZONE_HEIGHT;
+        const zoneTop = zoneY;
+        const zoneBottom = zoneY + this.DETECTION_ZONE_HEIGHT;
+        
+        // Bodies to add after removing the originals
+        const newBodies = [];
+        
+        // Process each body in the zone
+        for (const body of bodiesInZone) {
+            // Check if body extends above or below the zone
+            const highestY = Math.min(...body.vertices.map(v => v.y));
+            const lowestY = Math.max(...body.vertices.map(v => v.y));
+            
+            // Remove the original body
+            World.remove(this.world, body);
+            
+            // If body extends above zone, create new body for top part
+            if (highestY < zoneTop) {
+                const topPart = this.createBodySlice(body, highestY, zoneTop);
+                if (topPart) newBodies.push(topPart);
+            }
+            
+            // If body extends below zone, create new body for bottom part
+            if (lowestY > zoneBottom) {
+                const bottomPart = this.createBodySlice(body, zoneBottom, lowestY);
+                if (bottomPart) newBodies.push(bottomPart);
+            }
+        }
+        
+        // Add new bodies (sliced parts) back to the world
+        if (newBodies.length > 0) {
+            World.add(this.world, newBodies);
+        }
+        
+        // Add visual effect for zone clearing
+        this.addClearingVisualEffect(zoneIndex);
+        
+        // Update score
+        this.score += 100 * this.difficulty;
+        console.log(`Score updated: ${this.score}`);
+        
+        // Reset the progress bar for this zone
+        this.updateProgressBar(zoneIndex, 0);
+        
+        // Optional: Update score display
+        // document.getElementById('score').textContent = this.score;
+    },
+    
+    // Create a slice of a body between two y-coordinates
+    createBodySlice: function(originalBody, topY, bottomY) {
+        // This is a simplified approach - in a real game you'd need more accurate geometry
+        
+        // For now, we'll create a rectangle with similar properties to the original
+        const width = Math.max(...originalBody.vertices.map(v => v.x)) - 
+                      Math.min(...originalBody.vertices.map(v => v.x));
+        const height = bottomY - topY;
+        const x = originalBody.position.x;
+        const y = topY + height/2;
+        
+        // Create new body with same properties
+        const slicedBody = Bodies.rectangle(x, y, width, height, {
+            render: { 
+                fillStyle: originalBody.render.fillStyle,
+                strokeStyle: originalBody.render.strokeStyle,
+                lineWidth: originalBody.render.lineWidth
+            },
+            // Preserve any custom properties from original body
+            label: originalBody.label,
+            hasInternalPattern: originalBody.hasInternalPattern
+        });
+        
+        return slicedBody;
+    },
+    
+    // Add visual effect for zone clearing
+    addClearingVisualEffect: function(zoneIndex) {
+        const zoneY = this.PLAY_AREA_Y_OFFSET + zoneIndex * this.DETECTION_ZONE_HEIGHT;
+        
+        // Get the stripe object for this zone
+        const stripe = this.stripeZones[zoneIndex];
+        if (!stripe) return;
+        
+        // Store original color and create flash animation
+        const originalColor = stripe.render.fillStyle;
+        let opacity = 1.0;
+        let flashing = true;
+        
+        // Flash the zone by changing the stripe's color
+        const flashInterval = setInterval(() => {
+            if (!flashing) return;
+            
+            // Alternate between white and original color with fading opacity
+            if (opacity > 0.5) {
+                stripe.render.fillStyle = '#ffffff'; // White flash
+            } else {
+                stripe.render.fillStyle = originalColor; // Return to original
+            }
+            
+            // Reduce opacity
+            opacity -= 0.1;
+            if (opacity <= 0) {
+                clearInterval(flashInterval);
+                flashing = false;
+                stripe.render.fillStyle = originalColor; // Ensure we end on original color
+            }
+        }, 50);
+        
+        // Also flash the progress bar
+        const progressBar = this.progressBars[zoneIndex];
+        if (progressBar) {
+            progressBar.style.backgroundColor = '#ffffff'; // Flash white
+            setTimeout(() => {
+                progressBar.style.backgroundColor = '#000000'; // Return to black
+            }, 200);
+        }
     },
 
     // Setup Matter.js event listeners
@@ -242,33 +545,39 @@ const Game = {
                 const sleepingBlock = this.currentBlock; // Store reference before potentially nulling
                 console.log(`Block ${sleepingBlock.label} is sleeping.`);
 
-                // 检查是否与顶部边界碰撞（考虑到边界现在是可见的）
-                // 注意：我们改变了顶部边界的位置，所以这里的检测逻辑可能需要微调
+                // Mark the current block as settled (no longer player controlled)
+                this.currentBlock = null;
+                
+                // Check if any block touches top boundary
                 const collisions = Query.collides(sleepingBlock, [this.topBoundary]);
-
-                // 检查碰撞的严重程度 - 确保方块不仅仅是轻微接触顶部边界
                 if (collisions.length > 0) {
-                    // 检查碰撞深度
-                    const collision = collisions[0];
                     const blockY = sleepingBlock.position.y;
                     
-                    // 如果方块的中心非常接近顶部边界，则游戏结束
-                    // 这可能需要根据实际游戏效果进行调整
+                    // If block's center is very close to top, game over
                     if (blockY < this.BLOCK_SIZE * 2) {
                         console.log(`Block ${sleepingBlock.label} 在顶部停止. GAME OVER.`);
                         this.handleGameOver();
-                    } else {
-                        // 方块睡眠但没有危险地接近顶部 -> 安全生成下一个
-                        this.currentBlock = null; // 标记当前方块已定居
-                        this.spawnNewBlock();   // 生成下一个
+                        return;
                     }
-                } else {
-                    // 方块睡眠但没有触及顶部边界 -> 安全生成下一个
-                    this.currentBlock = null; // 标记当前方块已定居
-                    this.spawnNewBlock();   // 生成下一个
+                }
+                
+                // Check for zone clearing
+                this.checkDetectionZones();
+                
+                // Spawn next block if game continues
+                if (!this.isGameOver) {
+                    this.spawnNewBlock();
                 }
             }
+            
+            // Update progress bars continuously while game is running
+            // Even during active block movement
+            if (!this.isGameOver) {
+                this.checkDetectionZones();
+            }
         });
+        
+        // No need for additional interval since we're updating on each afterUpdate
     }
 };
 
