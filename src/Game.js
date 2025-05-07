@@ -147,17 +147,21 @@ const Game = {
             isStatic: true,
             render: { fillStyle: '#333' } // Dark grey walls
         };
-        const topBoundaryY = -5; // Position of the invisible top boundary
-        const topBoundaryThickness = 10;
+        const topBoundaryY = 0; // 将位置调整到画布顶部可见位置
+        const topBoundaryThickness = 4; // 稍微加粗边框
 
         // Create and store the top boundary body
         this.topBoundary = Bodies.rectangle(this.CANVAS_WIDTH / 2, topBoundaryY, this.CANVAS_WIDTH, topBoundaryThickness, {
             ...wallOptions,
-            isSensor: true,
+            isSensor: true, // 仍然是传感器，不参与实际碰撞
             label: 'boundary-top',
-            render: { visible: false }
+            render: { 
+                fillStyle: '#ff5500', // 醒目的橙色
+                visible: true // 使边界可见
+            }
         });
 
+        // 先添加其他墙壁
         World.add(this.world, [
             // Ground (a bit thicker)
             Bodies.rectangle(this.CANVAS_WIDTH / 2, this.CANVAS_HEIGHT, this.CANVAS_WIDTH, 10, { ...wallOptions, label: 'ground' }),
@@ -165,8 +169,11 @@ const Game = {
             Bodies.rectangle(0, this.CANVAS_HEIGHT / 2, 10, this.CANVAS_HEIGHT, { ...wallOptions, label: 'wall-left' }),
             // Right Wall
             Bodies.rectangle(this.CANVAS_WIDTH, this.CANVAS_HEIGHT / 2, 10, this.CANVAS_HEIGHT, { ...wallOptions, label: 'wall-right' }),
-            this.topBoundary // Add the stored top boundary to the world
         ]);
+        
+        // 最后添加顶部边界，确保它在最上层显示
+        World.add(this.world, this.topBoundary);
+        
         console.log("Boundaries added.");
 
         // --- Add the first Tetromino ---
@@ -226,9 +233,6 @@ const Game = {
 
     // Setup Matter.js event listeners
     setupEventListeners: function() {
-        // --- Remove the 'collisionStart' listener for game over ---
-        // Events.on(this.engine, 'collisionStart', (event) => { ... }); // Removed
-
         // --- Spawning Next Block & Game Over Check (Modified 'afterUpdate') ---
         Events.on(this.engine, 'afterUpdate', () => {
             if (this.isGameOver) return; // Skip if game is already over
@@ -238,17 +242,30 @@ const Game = {
                 const sleepingBlock = this.currentBlock; // Store reference before potentially nulling
                 console.log(`Block ${sleepingBlock.label} is sleeping.`);
 
-                // Check for collision with top boundary *now* that it's sleeping
+                // 检查是否与顶部边界碰撞（考虑到边界现在是可见的）
+                // 注意：我们改变了顶部边界的位置，所以这里的检测逻辑可能需要微调
                 const collisions = Query.collides(sleepingBlock, [this.topBoundary]);
 
+                // 检查碰撞的严重程度 - 确保方块不仅仅是轻微接触顶部边界
                 if (collisions.length > 0) {
-                    // It's sleeping AND touching the top boundary sensor -> Game Over
-                    console.log(`Block ${sleepingBlock.label} stopped touching the top boundary. GAME OVER.`);
-                    this.handleGameOver();
+                    // 检查碰撞深度
+                    const collision = collisions[0];
+                    const blockY = sleepingBlock.position.y;
+                    
+                    // 如果方块的中心非常接近顶部边界，则游戏结束
+                    // 这可能需要根据实际游戏效果进行调整
+                    if (blockY < this.BLOCK_SIZE * 2) {
+                        console.log(`Block ${sleepingBlock.label} 在顶部停止. GAME OVER.`);
+                        this.handleGameOver();
+                    } else {
+                        // 方块睡眠但没有危险地接近顶部 -> 安全生成下一个
+                        this.currentBlock = null; // 标记当前方块已定居
+                        this.spawnNewBlock();   // 生成下一个
+                    }
                 } else {
-                    // It's sleeping but NOT touching the top boundary -> Safe to spawn next
-                    this.currentBlock = null; // Mark current block as settled
-                    this.spawnNewBlock();   // Spawn the next one
+                    // 方块睡眠但没有触及顶部边界 -> 安全生成下一个
+                    this.currentBlock = null; // 标记当前方块已定居
+                    this.spawnNewBlock();   // 生成下一个
                 }
             }
         });

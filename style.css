@@ -1,0 +1,56 @@
+/* Basic styling */
+body { 
+  margin: 0; 
+  overflow: hidden; 
+  background-color: #f0f0f0; 
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 100vh; /* 使用视口高度确保满屏 */
+}
+
+/* Center canvas */
+canvas { 
+  display: block; 
+  background-color: #fff;
+  /* 移除了margin: auto，因为父元素已经使用flex布局居中 */
+}
+
+/* Initially hide the canvas */
+#game-canvas { 
+  display: none; 
+}
+
+/* Start screen styles */
+#start-screen {
+  position: absolute;
+  inset: 0;
+  background-color: #1f2937; /* equivalent to bg-gray-800 */
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  z-index: 10;
+}
+
+h1 {
+  font-size: 2.25rem; /* equivalent to text-4xl */
+  font-weight: bold;
+  color: white;
+  margin-bottom: 2rem; /* equivalent to mb-8 */
+}
+
+#start-button {
+  background-color: #3b82f6; /* equivalent to bg-blue-500 */
+  color: white;
+  font-weight: bold;
+  padding: 1rem 2rem; /* equivalent to py-4 px-8 */
+  border-radius: 0.25rem; /* equivalent to rounded */
+  font-size: 1.5rem; /* equivalent to text-2xl */
+  border: none;
+  cursor: pointer;
+}
+
+#start-button:hover {
+  background-color: #1d4ed8; /* equivalent to bg-blue-700 */
+} 

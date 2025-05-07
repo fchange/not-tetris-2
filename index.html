@@ -2,19 +2,17 @@
 <html>
 <head>
   <title>物理俄罗斯方块 (Matter.js)</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <style>
-    body { margin: 0; overflow: hidden; background-color: #f0f0f0; } /* Basic styling */
-    canvas { display: block; margin: auto; background-color: #fff; } /* Center canvas */
-    /* Initially hide the canvas */
-    #game-canvas { display: none; }
-  </style>
+  <!-- Remove Tailwind CSS -->
+  <!-- <script src="https://cdn.tailwindcss.com"></script> -->
+  <!-- Add link to our custom CSS file -->
+  <link rel="stylesheet" href="style.css">
+  <!-- Removed inline styles as they're now in style.css -->
 </head>
 <body>
-  <!-- Start Screen -->
-  <div id="start-screen" class="absolute inset-0 bg-gray-800 flex flex-col justify-center items-center z-10">
-    <h1 class="text-4xl font-bold text-white mb-8">物理俄罗斯方块</h1>
-    <button id="start-button" class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-4 px-8 rounded text-2xl">
+  <!-- Start Screen - removed Tailwind classes -->
+  <div id="start-screen">
+    <h1>物理俄罗斯方块</h1>
+    <button id="start-button">
       开始游戏 (Start)
     </button>
   </div>
