@@ -60,6 +60,60 @@ canvas {
   transition: width 0.2s ease; /* Smooth transition for updates */
 }
 
+/* Score container styles */
+#score-container {
+  margin-left: 20px;
+  width: 150px;
+  background-color: #f8f8f8;
+  border-radius: 8px;
+  padding: 15px;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+  font-family: 'Arial', sans-serif;
+}
+
+/* Individual score section */
+.score-section {
+  margin-bottom: 20px;
+  padding-bottom: 10px;
+  border-bottom: 1px dashed #ccc;
+}
+
+.score-section:last-child {
+  margin-bottom: 0;
+  border-bottom: none;
+}
+
+/* Score labels */
+.score-label {
+  font-size: 14px;
+  color: #666;
+  margin-bottom: 5px;
+}
+
+/* Score values */
+#score-value, #combo-counter, #difficulty-level, #high-score {
+  font-size: 24px;
+  font-weight: bold;
+  color: #333;
+}
+
+/* Special styling for combo counter */
+#combo-counter {
+  color: #ff5500; /* Orange color for combo */
+  transition: all 0.3s ease;
+}
+
+/* Animation for score changes */
+@keyframes score-pulse {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.1); }
+  100% { transform: scale(1); }
+}
+
+.score-change {
+  animation: score-pulse 0.3s ease;
+}
+
 /* Start screen styles */
 #start-screen {
   position: absolute;
