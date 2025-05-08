@@ -103,6 +103,7 @@ const Game = {
                 height: this.CANVAS_HEIGHT,
                 wireframes: false,
                 background: 'transparent', // Set to transparent
+                showSleeping: false, // 禁用睡眠状态透明效果
                 // hasBounds: true, // Optional: ensure renderer covers canvas if scaled
             }
         });
@@ -193,6 +194,10 @@ const Game = {
 
     // Function to prepare game environment (boundaries and detection zone background)
     prepareEnvironment: function() {
+
+        // --- Create Background Stripes as Physical Bodies ---
+        this.createBackgroundStripes();
+
         // --- Setup boundaries ---
         const wallOptions = {
             isStatic: true,
@@ -208,18 +213,18 @@ const Game = {
             label: 'boundary-top',
             render: { 
                 fillStyle: '#ff5500', // 醒目的橙色
-                visible: true // 使边界可见
+                visible: false // 使边界可见
             }
         });
 
         // 先添加其他墙壁
         World.add(this.world, [
             // Ground (a bit thicker)
-            Bodies.rectangle(this.CANVAS_WIDTH / 2, this.CANVAS_HEIGHT, this.CANVAS_WIDTH, 10, { ...wallOptions, label: 'ground' }),
+            Bodies.rectangle(this.CANVAS_WIDTH / 2, this.CANVAS_HEIGHT + 5, this.CANVAS_WIDTH, 10, { ...wallOptions, label: 'ground' }),
             // Left Wall
-            Bodies.rectangle(0, this.CANVAS_HEIGHT / 2, 10, this.CANVAS_HEIGHT, { ...wallOptions, label: 'wall-left' }),
+            Bodies.rectangle(-5, this.CANVAS_HEIGHT / 2, 10, this.CANVAS_HEIGHT, { ...wallOptions, label: 'wall-left' }),
             // Right Wall
-            Bodies.rectangle(this.CANVAS_WIDTH, this.CANVAS_HEIGHT / 2, 10, this.CANVAS_HEIGHT, { ...wallOptions, label: 'wall-right' }),
+            Bodies.rectangle(this.CANVAS_WIDTH + 5, this.CANVAS_HEIGHT / 2, 10, this.CANVAS_HEIGHT, { ...wallOptions, label: 'wall-right' }),
         ]);
         
         // 最后添加顶部边界，确保它在最上层显示
@@ -227,8 +232,6 @@ const Game = {
         
         console.log("Boundaries added.");
 
-        // --- Create Background Stripes as Physical Bodies ---
-        this.createBackgroundStripes();
     },
     
     // Create background stripes as physical bodies

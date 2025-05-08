@@ -68,48 +68,25 @@ const Tetromino = (() => {
 
     // Function to create a single block
     function createBlock(x, y, color, options = {}) {
-        // 提取特殊效果选项
-        const blockEffects = options.blockEffects || {};
-        const index = options.index || 0;
-        
-        // 添加亮色边缘，增强视觉效果
-        const lighterColor = getLighterColor(color, 40); // 获取更亮的颜色变体
-        
-        // 应用渲染选项
+        // 简化渲染选项，只使用单色填充，无边框
         const renderOptions = {
             fillStyle: color,
-            strokeStyle: lighterColor, // 使用亮色作为边框
-            lineWidth: 2
+            lineWidth: 0,  // 设置为0以移除边框
+            strokeStyle: 'transparent',  // 透明边框
+            opacity: 1     // 始终保持完全不透明，即使在休眠状态
         };
-        
-        // 根据特殊效果修改渲染选项
-        if (blockEffects.useGradient) {
-            // 对 I 型方块使用渐变色 - 从左到右或从上到下
-            const darkerColor = getDarkerColor(color, 30);
-            renderOptions.fillStyle = darkerColor;
-            // 对不同位置的方块使用不同的颜色深度
-            renderOptions.strokeStyle = index % 2 === 0 ? lighterColor : color;
-        }
         
         // 构建方块选项
         const blockOptions = {
             ...options,
-            render: renderOptions
+            render: renderOptions,
+            sleepOpacity: 1  // 自定义属性，表示睡眠时的不透明度为1（完全不透明）
         };
         
-        // 应用特殊形状效果
-        if (blockEffects.chamfer) {
-            blockOptions.chamfer = blockEffects.chamfer;
-        }
+        // 移除特殊形状效果，不再使用圆角
         
         // 创建基本方块
         const block = Bodies.rectangle(x, y, BLOCK_SIZE, BLOCK_SIZE, blockOptions);
-        
-        // 应用后期效果
-        if (blockEffects.internalPattern) {
-            // 为 T 型方块添加特殊属性，可以在渲染周期中使用
-            block.hasInternalPattern = true;
-        }
         
         return block;
     }
@@ -159,26 +136,13 @@ const Tetromino = (() => {
         const options = {
             friction: friction,
             restitution: restitution,
-            label: `tetromino-${type}` // Add a label for easier identification
+            label: `tetromino-${type}`, // Add a label for easier identification
+            sleepOpacity: 1  // 自定义属性，使休眠的方块不会变透明
         };
 
-        // 4. 特殊样式效果：根据方块类型定制
+        // 4. 移除所有特殊样式效果
         let blockEffects = {};
-        switch(type) {
-            case 'I':
-                // I型方块 - 给每个方块添加渐变填充
-                blockEffects = { useGradient: true };
-                break;
-            case 'O':
-                // O型方块 - 圆角矩形效果
-                blockEffects = { chamfer: { radius: BLOCK_SIZE * 0.2 } };
-                break;
-            case 'T':
-                // T型方块 - 添加内部图案
-                blockEffects = { internalPattern: true };
-                break;
-            // 其他方块类型保持默认样式
-        }
+        // 不再根据方块类型添加特殊效果
 
         // 5. Create individual blocks
         const blocks = blockPositions.map((pos, index) => {
@@ -186,11 +150,9 @@ const Tetromino = (() => {
             const blockX = x + pos.x;
             const blockY = y + pos.y;
             
-            // 创建方块时应用特殊效果
+            // 创建方块，无特殊效果
             return createBlock(blockX, blockY, color, { 
-                ...options,
-                blockEffects: blockEffects,
-                index: index // 传递索引以便在方块创建中使用
+                ...options
             });
         });
 
@@ -203,6 +165,10 @@ const Tetromino = (() => {
             parts: blocks,
             friction: friction,
             restitution: restitution,
+            render: {
+                opacity: 1,  // 确保渲染时始终完全不透明
+                sleepOpacity: 1  // 自定义属性：确保睡眠状态下也完全不透明
+            }
         });
         
         // Ensure the compound body has the proper label

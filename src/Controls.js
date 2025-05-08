@@ -4,8 +4,9 @@ const Controls = (() => {
     const { Body } = Matter; // Destructure Matter.js module
 
     // --- Control Parameters ---
-    const TORQUE_MAGNITUDE = 3;
-    const DOWN_FORCE_MAGNITUDE = 0.1;
+    const TORQUE_MAGNITUDE = 1.5; // 旋转力矩大小
+    const DOWN_FORCE_MAGNITUDE = 0.1; // 下落加速力大小
+    const MOVE_FORCE_MAGNITUDE = 0.01; // 水平移动力大小，从0.05减小到0.01
 
     function setupControls() {
         document.addEventListener('keydown', (event) => {
@@ -16,47 +17,55 @@ const Controls = (() => {
 
             switch (event.key) {
                 case 'ArrowLeft':
-                case 'a': // Add WASD alternative
-                    // Apply counter-clockwise torque
-                    // Matter.js Body.setAngularVelocity might be simpler if direct velocity control is desired
-                    // Using torque feels more physics-based
+                case 'a': // 左方向键和a键功能相同
+                    // 添加水平力向左移动方块
+                    Body.applyForce(Game.currentBlock, Game.currentBlock.position, {
+                        x: -MOVE_FORCE_MAGNITUDE * Game.currentBlock.mass,
+                        y: 0
+                    });
+                    
+                    // 同时施加逆时针扭矩（左旋转）
                     Game.currentBlock.torque = -TORQUE_MAGNITUDE;
-                    // console.log('Left Torque Applied');
                     break;
 
                 case 'ArrowRight':
-                case 'd': // Add WASD alternative
-                    // Apply clockwise torque
+                case 'd': // 右方向键和d键功能相同
+                    // 添加水平力向右移动方块
+                    Body.applyForce(Game.currentBlock, Game.currentBlock.position, {
+                        x: MOVE_FORCE_MAGNITUDE * Game.currentBlock.mass,
+                        y: 0
+                    });
+                    
+                    // 同时施加顺时针扭矩（右旋转）
                     Game.currentBlock.torque = TORQUE_MAGNITUDE;
-                    // console.log('Right Torque Applied');
                     break;
 
                 case 'ArrowDown':
-                case 's': // Add WASD alternative
-                    // Apply a downward force for faster drop
+                case 's': // 下方向键和s键功能相同
+                    // 施加向下的力加速下落
                     Body.applyForce(Game.currentBlock, Game.currentBlock.position, {
                         x: 0,
-                        y: DOWN_FORCE_MAGNITUDE * Game.currentBlock.mass // Scale force by mass
+                        y: DOWN_FORCE_MAGNITUDE * Game.currentBlock.mass
                     });
-                    // console.log('Down Force Applied');
                     break;
 
-                // Add other controls later if needed (e.g., hard drop 'ArrowUp' or 'w')
+                // 移除q和e专门的旋转控制
             }
         });
 
-        // Optional: Reset torque on keyup to prevent continuous spin after release
+        // 按键释放处理
         document.addEventListener('keyup', (event) => {
-             if (!Game.currentBlock || Game.isGameOver) {
+            if (!Game.currentBlock || Game.isGameOver) {
                 return;
             }
-            // Reset torque when left/right keys are released
+            // 左右方向键/ad键释放时停止旋转
             if ((event.key === 'ArrowLeft' || event.key === 'a') && Game.currentBlock.torque < 0) {
-                 Game.currentBlock.torque = 0;
+                Game.currentBlock.torque = 0;
             }
             if ((event.key === 'ArrowRight' || event.key === 'd') && Game.currentBlock.torque > 0) {
-                 Game.currentBlock.torque = 0;
+                Game.currentBlock.torque = 0;
             }
+            // 移除q和e键的处理
         });
 
         console.log("Controls Setup Complete.");
