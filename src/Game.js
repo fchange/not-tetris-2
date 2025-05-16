@@ -321,31 +321,9 @@ const Game = {
         ctx.fillText(`High Score: ${this.highScore}`, this.CANVAS_WIDTH / 2, this.CANVAS_HEIGHT / 2 + 60);
     },
 
-    // Check if all blocks (except the current one) are at rest
-    areAllBlocksSettled: function() {
-        const bodies = Composite.allBodies(this.world);
-        
-        for (let i = 0; i < bodies.length; i++) {
-            const body = bodies[i];
-            // Skip walls, boundaries, and current active block
-            if (body.isStatic || body === this.currentBlock) continue;
-            
-            // If any body is not sleeping, blocks are not settled
-            if (!body.isSleeping) {
-                return false;
-            }
-        }
-        
-        return true;
-    },
-
     // Check detection zones for area coverage
     checkDetectionZones: function() {
-        console.log("Checking detection zones...");
-        
-        // Calculate fill ratios even if blocks are not fully settled
-        // Only enforce the settled check for clearing zones
-        const allSettled = this.areAllBlocksSettled();
+        // console.log("Checking detection zones...");
         
         // Process from bottom to top (more logical for Tetris)
         for (let zoneIndex = this.DETECTION_ZONES_COUNT - 1; zoneIndex >= 0; zoneIndex--) {
@@ -386,13 +364,13 @@ const Game = {
             
             // Check if zone is filled enough to clear
             const fillRatio = coveredArea / zoneArea;
-            console.log(`Zone ${zoneIndex} fill ratio: ${fillRatio.toFixed(2)}`);
+            // console.log(`Zone ${zoneIndex} fill ratio: ${fillRatio.toFixed(2)}`);
             
             // Update progress bar for this zone
             this.updateProgressBar(zoneIndex, fillRatio);
             
             // Only clear zones if all blocks are settled
-            if (allSettled && fillRatio >= this.DETECTION_ZONE_FILL_THRESHOLD) {
+            if (fillRatio >= this.DETECTION_ZONE_FILL_THRESHOLD) {
                 console.log(`Zone ${zoneIndex} is full enough for clearing!`);
                 
                 // Clear this zone (remove bodies and add visual effect)
