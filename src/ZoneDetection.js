@@ -11,7 +11,7 @@ const ZoneDetection = {
     GRID_HEIGHT_BLOCKS: 20, // Height of the play area in blocks
     CANVAS_EXTRA_HEIGHT_BLOCKS: 0, // Extra space at the top for spawning
     DETECTION_ZONES_COUNT: 20, // Number of horizontal detection zones
-    DETECTION_ZONE_FILL_THRESHOLD: 0.6, // 60% fill threshold for clearing
+    DETECTION_ZONE_FILL_THRESHOLD: 0.8, // fill threshold for clearing
 
     // Background Stripe Colors
     STRIPE_COLOR_1: '#e8e8e8', // Lighter gray
@@ -285,9 +285,10 @@ const ZoneDetection = {
     },
     
     // Clear a zone by removing bodies in it and creating new bodies as needed
-    clearZone: function(world, zoneIndex, bodiesInZone, zoneY, zoneHeight) {
+    clearZone: function(world, zoneIndex, bodiesInZone) {
+        const zoneY = this.PLAY_AREA_Y_OFFSET + zoneIndex * this.DETECTION_ZONE_HEIGHT;
         const zoneTop = zoneY;
-        const zoneBottom = zoneY + zoneHeight;
+        const zoneBottom = zoneY + this.DETECTION_ZONE_HEIGHT;
         
         // Bodies to add after removing the originals
         const newBodies = [];

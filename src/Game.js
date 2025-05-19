@@ -8,7 +8,6 @@ const Game = {
     GRID_HEIGHT_BLOCKS: 20, // Height of the play area in blocks
     CANVAS_EXTRA_HEIGHT_BLOCKS: 0, // Extra space at the top for spawning
     DETECTION_ZONES_COUNT: 20, // Number of horizontal detection zones
-    DETECTION_ZONE_FILL_THRESHOLD: 0.6, // 60% fill threshold for clearing
 
     // Scoring Constants
     BASE_SCORE_PER_CLEAR: 100, // Base points for clearing a zone
@@ -23,7 +22,6 @@ const Game = {
     get PLAY_AREA_Y_OFFSET() { return this.CANVAS_EXTRA_HEIGHT_BLOCKS * this.BLOCK_SIZE; }, // Y offset where play area starts
     get CANVAS_WIDTH() { return this.PLAY_AREA_WIDTH; }, // Canvas width matches play area width
     get CANVAS_HEIGHT() { return (this.GRID_HEIGHT_BLOCKS + this.CANVAS_EXTRA_HEIGHT_BLOCKS) * this.BLOCK_SIZE; }, // e.g., 660
-    get DETECTION_ZONE_HEIGHT() { return this.PLAY_AREA_HEIGHT / this.DETECTION_ZONES_COUNT; }, // e.g., 60
 
     // Spawning Coordinates (center horizontally, near top vertically)
     SPAWN_X: function() { return this.PLAY_AREA_WIDTH / 2; }, // Centered X
@@ -53,13 +51,13 @@ const Game = {
     topBoundary: null, // Added property to store the top boundary
     blocksSettled: false, // Flag to track when all blocks have settled
     stripeZones: [], // Array to store the stripe zone bodies
-    
+
     // Score tracking
     comboCount: 0, // Number of consecutive zone clears
     lastComboTime: 0, // Time of the last combo
     zonesCleared: 0, // Total zones cleared
     currentClearEvent: [], // Zones cleared in the current pass
-    
+
     // Progress bars for detection zones
     progressBars: [], // Array to store progress bar elements
     zoneFillRatios: [], // Array to store fill ratios for each zone
@@ -113,7 +111,7 @@ const Game = {
 
         // 4. Prepare game environment (boundaries and background)
         this.prepareEnvironment();
-        
+
         // 5. Initialize zone detection environment
         ZoneDetection.initEnvironment(this.world, this.CANVAS_WIDTH, this.CANVAS_HEIGHT);
 
@@ -155,7 +153,7 @@ const Game = {
             ...wallOptions,
             isSensor: true, // 仍然是传感器，不参与实际碰撞
             label: 'boundary-top',
-            render: { 
+            render: {
                 fillStyle: '#ff5500', // 醒目的橙色
                 visible: false // 使边界可见
             }
@@ -170,10 +168,10 @@ const Game = {
             // Right Wall
             Bodies.rectangle(this.CANVAS_WIDTH + 5, this.CANVAS_HEIGHT / 2, 10, this.CANVAS_HEIGHT, { ...wallOptions, label: 'wall-right' }),
         ]);
-        
+
         // 最后添加顶部边界，确保它在最上层显示
         World.add(this.world, this.topBoundary);
-        
+
         console.log("Boundaries added.");
     },
 
@@ -193,14 +191,14 @@ const Game = {
         console.log("GAME OVER!");
         this.isGameOver = true;
         Runner.stop(this.runner); // Stop the physics simulation
-        
+
         // Check for high score
         if (this.score > this.highScore) {
             this.highScore = this.score;
             localStorage.setItem('tetrisHighScore', this.highScore);
             console.log(`New high score: ${this.highScore}!`);
         }
-        
+
         // Display game over message on screen
         const ctx = this.render.context;
         ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
@@ -209,77 +207,126 @@ const Game = {
         ctx.fillStyle = 'white';
         ctx.textAlign = 'center';
         ctx.fillText('GAME OVER', this.CANVAS_WIDTH / 2, this.CANVAS_HEIGHT / 2 - 24);
-        
+
         // Show final score
         ctx.font = '24px sans-serif';
         ctx.fillText(`Final Score: ${this.score}`, this.CANVAS_WIDTH / 2, this.CANVAS_HEIGHT / 2 + 24);
-        
+
         // Show high score
         ctx.fillText(`High Score: ${this.highScore}`, this.CANVAS_WIDTH / 2, this.CANVAS_HEIGHT / 2 + 60);
     },
 
     // Clear a zone (with help from ZoneDetection module)
     clearZone: function(zoneIndex, bodiesInZone) {
-        const zoneY = this.PLAY_AREA_Y_OFFSET + zoneIndex * this.DETECTION_ZONE_HEIGHT;
-        
         // Use ZoneDetection module to handle the physics part
         const newBodies = ZoneDetection.clearZone(
-            this.world, 
-            zoneIndex, 
-            bodiesInZone, 
-            zoneY, 
-            this.DETECTION_ZONE_HEIGHT
+            this.world,
+            zoneIndex,
+            bodiesInZone
         );
-        
+
         // Add visual effect for zone clearing
         ZoneDetection.addClearingVisualEffect(zoneIndex);
-        
+
         // Track this zone in the current clear event
         this.currentClearEvent.push(zoneIndex);
-        
+
         // Increment total zones cleared count
         this.zonesCleared++;
-        
+
         // Update difficulty based on zones cleared
         this.updateDifficulty();
-        
+
         // Add point for this zone with height bonus
         this.scoreZoneClear(zoneIndex);
-        
+
         // Reset the progress bar for this zone
         ZoneDetection.updateProgressBar(zoneIndex, 0);
     },
 
     // Setup Matter.js event listeners
     setupEventListeners: function() {
-        // --- Spawning Next Block & Game Over Check (Modified 'afterUpdate') ---
+        // --- Collision detection for Game Over and block settling ---
+        Events.on(this.engine, 'collisionStart', (event) => {
+            if (this.isGameOver || !this.currentBlock) return; // Skip if game is over or no current block
+
+            // Check each collision pair
+            for (let pair of event.pairs) {
+                let { bodyA, bodyB } = pair;
+                while (bodyA.parent != bodyA) bodyA = bodyA.parent;
+                while (bodyB.parent != bodyB) bodyB = bodyB.parent;
+                const currentBody = this.currentBlock;
+
+                // Determine which body is the current block and which is the other body
+                const isBodyACurrentBlock = bodyA === currentBody || bodyA.parent === currentBody;
+                const isBodyBCurrentBlock = bodyB === currentBody || bodyB.parent === currentBody;
+
+                // Skip if neither body is the current block
+                if (!isBodyACurrentBlock && !isBodyBCurrentBlock) continue;
+
+                // Get the current block and the other body
+                const otherBody = isBodyACurrentBlock ? bodyB : bodyA;
+
+                // Skip if the other body is a sensor or static (like boundaries)
+                if (otherBody.isSensor || otherBody.isStatic) continue;
+
+                // This is a collision with a NOT_TOP block (another tetromino)
+                console.log(`Current block collided with another block`);
+
+                // Check if there's also a collision with the top boundary
+                const topCollisions = Query.collides(currentBody, [this.topBoundary]);
+
+                // Game over condition: collision with NOT_TOP block AND top boundary collision
+                if (topCollisions.length > 0) {
+                    console.log(`Game over condition: collision with block at top boundary`);
+                    this.handleGameOver();
+                    return;
+                }
+
+                // Mark the current block as settled
+                this.currentBlock = null;
+
+                // Reset current clear event
+                this.currentClearEvent = [];
+
+                // Directly check for zone clearing
+                ZoneDetection.checkDetectionZones(
+                    this.world,
+                    null,
+                    ZoneDetection.updateProgressBar.bind(ZoneDetection),
+                    this.clearZone.bind(this)
+                );
+
+                // If we cleared any zones in this pass, log the event
+                if (this.currentClearEvent.length > 0) {
+                    console.log(`Cleared ${this.currentClearEvent.length} zones in one pass!`);
+                }
+
+                // Spawn next block if game continues
+                if (!this.isGameOver) {
+                    this.spawnNewBlock();
+                }
+
+                // We've handled this collision, no need to check others
+                break;
+            }
+        });
+
+        // --- Continuous updates for progress bars and sleeping blocks ---
         Events.on(this.engine, 'afterUpdate', () => {
             if (this.isGameOver) return; // Skip if game is already over
 
-            // Check if the current block exists and is sleeping
+            // Check if the current block exists and is sleeping (fallback for blocks that don't collide)
             if (this.currentBlock && this.currentBlock.isSleeping) {
                 const sleepingBlock = this.currentBlock; // Store reference before potentially nulling
                 console.log(`Block ${sleepingBlock.label} is sleeping.`);
 
                 // Mark the current block as settled (no longer player controlled)
                 this.currentBlock = null;
-                
-                // Check if any block touches top boundary
-                const collisions = Query.collides(sleepingBlock, [this.topBoundary]);
-                if (collisions.length > 0) {
-                    const blockY = sleepingBlock.position.y;
-                    
-                    // If block's center is very close to top, game over
-                    if (blockY < this.BLOCK_SIZE * 2) {
-                        console.log(`Block ${sleepingBlock.label} 在顶部停止. GAME OVER.`);
-                        this.handleGameOver();
-                        return;
-                    }
-                }
-                
+
                 // Reset current clear event
                 this.currentClearEvent = [];
-                
+
                 // Check for zone clearing using ZoneDetection module
                 ZoneDetection.checkDetectionZones(
                     this.world,
@@ -287,18 +334,18 @@ const Game = {
                     ZoneDetection.updateProgressBar.bind(ZoneDetection),
                     this.clearZone.bind(this)
                 );
-                
+
                 // If we cleared any zones in this pass, log the event
                 if (this.currentClearEvent.length > 0) {
                     console.log(`Cleared ${this.currentClearEvent.length} zones in one pass!`);
                 }
-                
+
                 // Spawn next block if game continues
                 if (!this.isGameOver) {
                     this.spawnNewBlock();
                 }
             }
-            
+
             // Continuously update progress bars and check zones while game is running
             if (!this.isGameOver) {
                 ZoneDetection.checkDetectionZones(
@@ -319,7 +366,7 @@ const Game = {
         this.zonesCleared = 0;
         this.difficulty = 1;
         this.currentClearEvent = [];
-        
+
         // Load high score from localStorage if available
         const savedHighScore = localStorage.getItem('tetrisHighScore');
         if (savedHighScore) {
@@ -327,34 +374,34 @@ const Game = {
         } else {
             this.highScore = 0;
         }
-        
+
         // Update all UI elements
         this.updateScoreDisplay();
     },
-    
+
     // Score a zone clear with appropriate bonuses
     scoreZoneClear: function(zoneIndex) {
         // Increment combo (consecutive clears)
         this.incrementCombo();
-        
+
         // Get base score with difficulty multiplier
         const baseScore = this.BASE_SCORE_PER_CLEAR * this.difficulty;
-        
+
         // Apply height bonus (higher zones = more points)
         const heightBonus = this.getHeightBonus(zoneIndex);
-        
+
         // Apply combo multiplier
         const comboMultiplier = this.getComboMultiplier();
-        
+
         // Calculate total score for this clear
         const totalPoints = Math.floor(baseScore * heightBonus * comboMultiplier);
-        
+
         // Add points to the score
         this.addPoints(totalPoints);
-        
+
         console.log(`Zone ${zoneIndex} cleared! +${totalPoints} points (base:${baseScore}, height:x${heightBonus.toFixed(2)}, combo:x${comboMultiplier})`);
     },
-    
+
     // Update all score-related UI elements
     updateScoreDisplay: function() {
         // Update score
@@ -362,12 +409,12 @@ const Game = {
         if (scoreElement) {
             scoreElement.textContent = this.score;
         }
-        
+
         // Update combo
         const comboElement = document.getElementById('combo-counter');
         if (comboElement) {
             comboElement.textContent = `x${this.comboCount + 1}`;
-            
+
             // Apply animation only for combos higher than 1
             if (this.comboCount > 0) {
                 comboElement.classList.add('score-change');
@@ -376,46 +423,46 @@ const Game = {
                 }, 300);
             }
         }
-        
+
         // Update difficulty/level
         const difficultyElement = document.getElementById('difficulty-level');
         if (difficultyElement) {
             difficultyElement.textContent = Math.floor(this.difficulty);
         }
-        
+
         // Update high score
         const highScoreElement = document.getElementById('high-score');
         if (highScoreElement) {
             highScoreElement.textContent = this.highScore;
         }
     },
-    
+
     // Calculate combo multiplier using Fibonacci sequence
     getComboMultiplier: function() {
         // Limit combo index to the length of the Fibonacci sequence array
         const comboIndex = Math.min(this.comboCount, this.FIBONACCI_SEQUENCE.length - 1);
         return this.FIBONACCI_SEQUENCE[comboIndex];
     },
-    
+
     // Calculate height bonus based on zone position
     getHeightBonus: function(zoneIndex) {
         // Calculate relative height from bottom (0 = bottom, 1 = top)
-        const heightFromBottom = 1 - (zoneIndex / this.DETECTION_ZONES_COUNT); 
+        const heightFromBottom = 1 - (zoneIndex / this.DETECTION_ZONES_COUNT);
         // Apply bonus factor (higher zones get higher bonus)
         return 1 + (heightFromBottom * this.HEIGHT_BONUS_FACTOR * this.DETECTION_ZONES_COUNT);
     },
-    
+
     // Add points to the score with animations
     addPoints: function(points) {
         const oldScore = this.score;
         this.score += points;
-        
+
         // Update high score if needed
         if (this.score > this.highScore) {
             this.highScore = this.score;
             localStorage.setItem('tetrisHighScore', this.highScore);
         }
-        
+
         // Animate the score change
         const scoreElement = document.getElementById('score-value');
         if (scoreElement) {
@@ -424,17 +471,17 @@ const Game = {
                 scoreElement.classList.remove('score-change');
             }, 300);
         }
-        
+
         // Update all score displays
         this.updateScoreDisplay();
-        
+
         console.log(`Score increased by ${points} points. New score: ${this.score}`);
     },
-    
+
     // Increment combo count and manage combo timing
     incrementCombo: function() {
         const now = Date.now();
-        
+
         // If this is not the first clear in a series of clears
         if (this.currentClearEvent.length > 0) {
             this.comboCount++;
@@ -447,30 +494,30 @@ const Game = {
                 this.comboCount = 0;
             }
         }
-        
+
         // Update the last combo time
         this.lastComboTime = now;
-        
+
         // Update combo display
         this.updateScoreDisplay();
-        
+
         console.log(`Combo increased to x${this.comboCount + 1}`);
     },
-    
+
     // Increase difficulty based on zones cleared
     updateDifficulty: function() {
         // Increase difficulty every 10 zones cleared
         this.difficulty = 1 + Math.floor(this.zonesCleared / 10) * this.DIFFICULTY_MULTIPLIER_STEP;
-        
+
         // Update visuals for difficulty
         this.updateScoreDisplay();
-        
+
         // Adjust game physics based on difficulty (optional)
         // this.engine.timing.timeScale = 1 + (this.difficulty - 1) * 0.1;
-        
+
         console.log(`Difficulty updated to ${this.difficulty.toFixed(1)}`);
     },
 };
 
 // Make it accessible globally or via module system if you evolve the project
-window.Game = Game; 
+window.Game = Game;
