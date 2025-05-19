@@ -323,30 +323,85 @@ const ZoneDetection = {
         return newBodies;
     },
     
-    // Create a slice of a body between two y-coordinates
+    // --- 多边形与水平线裁剪辅助函数 ---
+    clipPolygonWithHorizontalLine: function(vertices, lineY, keepAbove) {
+        const result = [];
+        for (let i = 0; i < vertices.length; i++) {
+            const curr = vertices[i];
+            const prev = vertices[(i + vertices.length - 1) % vertices.length];
+            const currInside = keepAbove ? (curr.y >= lineY) : (curr.y <= lineY);
+            const prevInside = keepAbove ? (prev.y >= lineY) : (prev.y <= lineY);
+            if (currInside) {
+                if (!prevInside) {
+                    // 交点
+                    const intersect = this.intersectHorizontal(prev, curr, lineY);
+                    if (intersect) result.push(intersect);
+                }
+                result.push(curr);
+            } else if (prevInside) {
+                // 交点
+                const intersect = this.intersectHorizontal(prev, curr, lineY);
+                if (intersect) result.push(intersect);
+            }
+        }
+        return result;
+    },
+    intersectHorizontal: function(p1, p2, lineY) {
+        if (p1.y === p2.y) return null; // 平行
+        const t = (lineY - p1.y) / (p2.y - p1.y);
+        if (t < 0 || t > 1) return null;
+        return {
+            x: p1.x + t * (p2.x - p1.x),
+            y: lineY
+        };
+    },
+    // Create a slice of a body between two y-coordinates (polygonal, not just rectangles)
     createBodySlice: function(originalBody, topY, bottomY) {
-        // This is a simplified approach - in a real game you'd need more accurate geometry
-        
-        // For now, we'll create a rectangle with similar properties to the original
-        const width = Math.max(...originalBody.vertices.map(v => v.x)) - 
-                      Math.min(...originalBody.vertices.map(v => v.x));
-        const height = bottomY - topY;
-        const x = originalBody.position.x;
-        const y = topY + height/2;
-        
-        // Create new body with same properties
-        const slicedBody = Bodies.rectangle(x, y, width, height, {
-            render: { 
-                fillStyle: originalBody.render.fillStyle,
-                strokeStyle: originalBody.render.strokeStyle,
-                lineWidth: originalBody.render.lineWidth
-            },
-            // Preserve any custom properties from original body
-            label: originalBody.label,
-            hasInternalPattern: originalBody.hasInternalPattern
-        });
-        
-        return slicedBody;
+        const { Bodies, Body, Vertices } = Matter;
+        // 1. 获取所有 block（parts），如果不是复合体就直接用自身
+        const blocks = (originalBody.parts && originalBody.parts.length > 1)
+            ? originalBody.parts.slice(1)
+            : [originalBody];
+        const newFragments = [];
+
+        // 2. 对每个 block 进行多边形裁剪
+        for (const block of blocks) {
+            // 获取原始顶点
+            const vertices = block.vertices.map(v => ({ x: v.x, y: v.y }));
+            // Sutherland–Hodgman 裁剪算法，裁剪在 [topY, bottomY] 区间
+            let clipped = vertices;
+            // 裁剪上边界
+            clipped = this.clipPolygonWithHorizontalLine(clipped, topY, true);
+            // 裁剪下边界
+            clipped = this.clipPolygonWithHorizontalLine(clipped, bottomY, false);
+            if (clipped.length >= 3) {
+                // 用 fromVertices 创建不规则碎片
+                const fragment = Bodies.fromVertices(
+                    Vertices.centre(clipped).x,
+                    Vertices.centre(clipped).y,
+                    [clipped],
+                    {
+                        render: { ...block.render },
+                        label: block.label,
+                        hasInternalPattern: block.hasInternalPattern
+                    },
+                    true // 自动简化
+                );
+                if (fragment) newFragments.push(fragment);
+            }
+        }
+        if (newFragments.length === 0) return null;
+        // 3. 组合所有碎片
+        const newBody = (newFragments.length === 1)
+            ? newFragments[0]
+            : Body.create({
+                parts: newFragments,
+                render: { ...originalBody.render },
+                label: originalBody.label,
+                hasInternalPattern: originalBody.hasInternalPattern
+            });
+        if (originalBody.tetrominoType) newBody.tetrominoType = originalBody.tetrominoType;
+        return newBody;
     }
 };
 
