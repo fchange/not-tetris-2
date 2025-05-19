@@ -118,32 +118,83 @@ canvas {
 #start-screen {
   position: absolute;
   inset: 0;
-  background-color: #1f2937; /* equivalent to bg-gray-800 */
+  background-color: #1f2937;
   display: flex;
   flex-direction: column;
   justify-content: center;
   align-items: center;
   z-index: 10;
+  padding: 2rem;
+  text-align: center;
 }
 
 h1 {
-  font-size: 2.25rem; /* equivalent to text-4xl */
+  font-size: 2.25rem;
   font-weight: bold;
   color: white;
-  margin-bottom: 2rem; /* equivalent to mb-8 */
+  margin-bottom: 2rem;
+}
+
+/* 游戏说明样式 */
+.game-instructions {
+  background-color: rgba(255, 255, 255, 0.1);
+  padding: 1.5rem;
+  border-radius: 0.5rem;
+  margin-bottom: 1.5rem;
+  max-width: 600px;
+}
+
+.game-instructions h2 {
+  color: #3b82f6;
+  font-size: 1.5rem;
+  margin-bottom: 1rem;
+}
+
+.game-instructions p {
+  color: #e5e7eb;
+  margin-bottom: 0.75rem;
+  line-height: 1.5;
+}
+
+/* 按键说明样式 */
+.controls-instructions {
+  background-color: rgba(255, 255, 255, 0.1);
+  padding: 1.5rem;
+  border-radius: 0.5rem;
+  margin-bottom: 2rem;
+  max-width: 600px;
+}
+
+.controls-instructions h2 {
+  color: #3b82f6;
+  font-size: 1.5rem;
+  margin-bottom: 1rem;
+}
+
+.controls-instructions ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.controls-instructions li {
+  color: #e5e7eb;
+  margin-bottom: 0.5rem;
+  font-size: 1.1rem;
 }
 
 #start-button {
-  background-color: #3b82f6; /* equivalent to bg-blue-500 */
+  background-color: #3b82f6;
   color: white;
   font-weight: bold;
-  padding: 1rem 2rem; /* equivalent to py-4 px-8 */
-  border-radius: 0.25rem; /* equivalent to rounded */
-  font-size: 1.5rem; /* equivalent to text-2xl */
+  padding: 1rem 2rem;
+  border-radius: 0.25rem;
+  font-size: 1.5rem;
   border: none;
   cursor: pointer;
+  transition: background-color 0.2s;
 }
 
 #start-button:hover {
-  background-color: #1d4ed8; /* equivalent to bg-blue-700 */
+  background-color: #1d4ed8;
 } 

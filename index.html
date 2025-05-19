@@ -9,9 +9,27 @@
   <!-- Removed inline styles as they're now in style.css -->
 </head>
 <body>
-  <!-- Start Screen - removed Tailwind classes -->
+  <!-- Start Screen -->
   <div id="start-screen">
     <h1>物理俄罗斯方块</h1>
+    
+    <!-- 游戏说明 -->
+    <div class="game-instructions">
+      <h2>游戏说明</h2>
+      <p>这是一个基于物理引擎的俄罗斯方块变种游戏。方块会受重力影响，通过施加扭矩来控制方块的旋转和移动。</p>
+      <p>当水平区域内的方块占据面积达到90%时，该区域会被消除。连续消除多个区域可以获得连击奖励！</p>
+    </div>
+
+    <!-- 按键说明 -->
+    <div class="controls-instructions">
+      <h2>操作说明</h2>
+      <ul>
+        <li>← 左方向键：向左移动并逆时针旋转</li>
+        <li>→ 右方向键：向右移动并顺时针旋转</li>
+        <li>↓ 下方向键：加速下落</li>
+      </ul>
+    </div>
+
     <button id="start-button">
       开始游戏 (Start)
     </button>
