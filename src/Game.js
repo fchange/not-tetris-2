@@ -114,9 +114,9 @@ const Game = {
         // 4. Prepare game environment (boundaries and background)
         this.prepareEnvironment();
         
-        // 5. Create progress bars
-        this.createProgressBars();
-        
+        // 5. Initialize zone detection environment
+        ZoneDetection.initEnvironment(this.world, this.CANVAS_WIDTH, this.CANVAS_HEIGHT);
+
         // 6. Initialize score display
         this.initializeScoreDisplay();
 
@@ -140,64 +140,8 @@ const Game = {
         console.log("Game Started!");
     },
 
-    // Function to create progress bars for each detection zone
-    createProgressBars: function() {
-        console.log("Creating progress bars for detection zones...");
-        
-        // Clear existing progress bars if any
-        this.progressBars = [];
-        this.zoneFillRatios = new Array(this.DETECTION_ZONES_COUNT).fill(0);
-        
-        // Get the container for progress bars
-        const container = document.getElementById('progress-bars-container');
-        container.innerHTML = ''; // Clear container
-        
-        // Set container height to match canvas height
-        container.style.height = this.CANVAS_HEIGHT + 'px';
-        
-        // Create a progress bar for each detection zone
-        for (let i = 0; i < this.DETECTION_ZONES_COUNT; i++) {
-            // Create progress bar container
-            const progressBar = document.createElement('div');
-            progressBar.className = 'progress-bar';
-            progressBar.style.height = this.DETECTION_ZONE_HEIGHT + 'px';
-            
-            // Create progress indicator (the part that fills)
-            const progressIndicator = document.createElement('div');
-            progressIndicator.className = 'progress-indicator';
-            progressIndicator.style.width = '0%'; // Start with 0% fill
-            
-            // Add indicator to progress bar
-            progressBar.appendChild(progressIndicator);
-            
-            // Add progress bar to container
-            container.appendChild(progressBar);
-            
-            // Store reference to progress bar element
-            this.progressBars.push(progressIndicator);
-        }
-        
-        console.log(`Created ${this.progressBars.length} progress bars`);
-    },
-    
-    // Function to update progress bar for a specific zone
-    updateProgressBar: function(zoneIndex, fillRatio) {
-        if (zoneIndex < 0 || zoneIndex >= this.progressBars.length) return;
-        
-        // Store the fill ratio
-        this.zoneFillRatios[zoneIndex] = fillRatio;
-        
-        // Update the progress bar width
-        const percentage = Math.min(Math.max(fillRatio * 100, 0), 100); // Ensure between 0-100%
-        this.progressBars[zoneIndex].style.width = percentage + '%';
-    },
-
     // Function to prepare game environment (boundaries and detection zone background)
     prepareEnvironment: function() {
-
-        // --- Create Background Stripes as Physical Bodies ---
-        this.createBackgroundStripes();
-
         // --- Setup boundaries ---
         const wallOptions = {
             isStatic: true,
@@ -231,50 +175,6 @@ const Game = {
         World.add(this.world, this.topBoundary);
         
         console.log("Boundaries added.");
-
-    },
-    
-    // Create background stripes as physical bodies
-    createBackgroundStripes: function() {
-        console.log("Creating background stripes as physical bodies...");
-        
-        // Create detection zones as physical bodies
-        for (let i = 0; i < this.DETECTION_ZONES_COUNT; i++) {
-            const zoneY = this.PLAY_AREA_Y_OFFSET + i * this.DETECTION_ZONE_HEIGHT;
-            // Position is at center of zone
-            const zoneCenterY = zoneY + (this.DETECTION_ZONE_HEIGHT / 2);
-            
-            const stripeOptions = {
-                isStatic: true,
-                isSensor: true, // Don't interact with other bodies
-                collisionFilter: {
-                    category: 0x0002, // Custom category for background
-                    mask: 0x0000 // Don't collide with anything
-                },
-                render: {
-                    fillStyle: (i % 2 === 0) ? this.STRIPE_COLOR_1 : this.STRIPE_COLOR_2,
-                    opacity: 1.0
-                },
-                label: `stripe-zone-${i}`
-            };
-            
-            // Create a rectangle body for the stripe
-            const stripe = Bodies.rectangle(
-                this.CANVAS_WIDTH / 2, // center x
-                zoneCenterY,           // center y
-                this.CANVAS_WIDTH,     // width
-                this.DETECTION_ZONE_HEIGHT, // height
-                stripeOptions
-            );
-            
-            // Add to the world
-            World.add(this.world, stripe);
-            
-            // Store reference to stripe
-            this.stripeZones.push(stripe);
-        }
-        
-        console.log(`Created ${this.stripeZones.length} background stripe bodies`);
     },
 
     // Function to spawn a new block
@@ -286,9 +186,6 @@ const Game = {
         World.add(this.world, newBlock);
         this.currentBlock = newBlock;
         console.log("New Tetromino added:", newBlock.label);
-
-        // Optional: Slightly wake up the block if sleeping is too aggressive initially
-        // Matter.Sleeping.set(newBlock, false);
     },
 
     // Function to handle game over
@@ -321,151 +218,21 @@ const Game = {
         ctx.fillText(`High Score: ${this.highScore}`, this.CANVAS_WIDTH / 2, this.CANVAS_HEIGHT / 2 + 60);
     },
 
-    // Check detection zones for area coverage
-    checkDetectionZones: function() {
-        // console.log("Checking detection zones...");
-        
-        // Process from bottom to top (more logical for Tetris)
-        for (let zoneIndex = this.DETECTION_ZONES_COUNT - 1; zoneIndex >= 0; zoneIndex--) {
-            const zoneY = this.PLAY_AREA_Y_OFFSET + zoneIndex * this.DETECTION_ZONE_HEIGHT;
-            const zoneTop = zoneY;
-            const zoneBottom = zoneY + this.DETECTION_ZONE_HEIGHT;
-            const zoneWidth = this.PLAY_AREA_WIDTH;
-            const zoneArea = zoneWidth * this.DETECTION_ZONE_HEIGHT;
-            
-            // Get all bodies (excluding walls/boundaries)
-            const bodies = Composite.allBodies(this.world).filter(body => 
-                !body.isStatic && 
-                !body.isSensor
-            );
-            
-            // Calculate covered area in this zone
-            let coveredArea = 0;
-            let bodiesInZone = [];
-            
-            for (let i = 0; i < bodies.length; i++) {
-                const body = bodies[i];
-                
-                // Skip the current active block when calculating fill ratios
-                if (body === this.currentBlock) continue;
-                
-                // Check if body is in this zone
-                if (this.isBodyInZone(body, zoneTop, zoneBottom)) {
-                    // Calculate area of body that's in this zone
-                    const areaInZone = this.calculateBodyAreaInZone(body, zoneTop, zoneBottom);
-                    coveredArea += areaInZone;
-                    
-                    // If any part of body is in this zone, add to list
-                    if (areaInZone > 0) {
-                        bodiesInZone.push(body);
-                    }
-                }
-            }
-            
-            // Check if zone is filled enough to clear
-            const fillRatio = coveredArea / zoneArea;
-            // console.log(`Zone ${zoneIndex} fill ratio: ${fillRatio.toFixed(2)}`);
-            
-            // Update progress bar for this zone
-            this.updateProgressBar(zoneIndex, fillRatio);
-            
-            // Only clear zones if all blocks are settled
-            if (fillRatio >= this.DETECTION_ZONE_FILL_THRESHOLD) {
-                console.log(`Zone ${zoneIndex} is full enough for clearing!`);
-                
-                // Clear this zone (remove bodies and add visual effect)
-                this.clearZone(zoneIndex, bodiesInZone);
-            }
-        }
-    },
-    
-    // Check if a body is in a specific zone
-    isBodyInZone: function(body, zoneTop, zoneBottom) {
-        // Using vertices to check if any part of the body is in the zone
-        for (const vertex of body.vertices) {
-            if (vertex.y >= zoneTop && vertex.y <= zoneBottom) {
-                return true;
-            }
-        }
-        
-        // Also check if a body completely covers the zone (no vertices in zone)
-        const highestY = Math.min(...body.vertices.map(v => v.y));
-        const lowestY = Math.max(...body.vertices.map(v => v.y));
-        
-        if (highestY < zoneTop && lowestY > zoneBottom) {
-            return true;
-        }
-        
-        return false;
-    },
-    
-    // Calculate the area of a body that's in a specific zone
-    calculateBodyAreaInZone: function(body, zoneTop, zoneBottom) {
-        // This is a simplified calculation - for more accuracy you might need
-        // a more complex polygon intersection algorithm
-        
-        // First, check if body is completely in the zone
-        const highestY = Math.min(...body.vertices.map(v => v.y));
-        const lowestY = Math.max(...body.vertices.map(v => v.y));
-        
-        if (highestY >= zoneTop && lowestY <= zoneBottom) {
-            // Body is completely in the zone - return its full area
-            return body.area;
-        }
-        
-        // For partly overlapping bodies, estimate the overlap area
-        // This is a rough approximation - could be improved
-        if (lowestY > zoneTop && highestY < zoneBottom) {
-            const totalHeight = lowestY - highestY;
-            const overlapTop = Math.max(zoneTop, highestY);
-            const overlapBottom = Math.min(zoneBottom, lowestY);
-            const overlapHeight = overlapBottom - overlapTop;
-            
-            // Approximate the area by height ratio
-            return body.area * (overlapHeight / totalHeight);
-        }
-        
-        return 0;
-    },
-    
-    // Clear a zone by removing bodies in it and creating new bodies as needed
+    // Clear a zone (with help from ZoneDetection module)
     clearZone: function(zoneIndex, bodiesInZone) {
         const zoneY = this.PLAY_AREA_Y_OFFSET + zoneIndex * this.DETECTION_ZONE_HEIGHT;
-        const zoneTop = zoneY;
-        const zoneBottom = zoneY + this.DETECTION_ZONE_HEIGHT;
         
-        // Bodies to add after removing the originals
-        const newBodies = [];
-        
-        // Process each body in the zone
-        for (const body of bodiesInZone) {
-            // Check if body extends above or below the zone
-            const highestY = Math.min(...body.vertices.map(v => v.y));
-            const lowestY = Math.max(...body.vertices.map(v => v.y));
-            
-            // Remove the original body
-            World.remove(this.world, body);
-            
-            // If body extends above zone, create new body for top part
-            if (highestY < zoneTop) {
-                const topPart = this.createBodySlice(body, highestY, zoneTop);
-                if (topPart) newBodies.push(topPart);
-            }
-            
-            // If body extends below zone, create new body for bottom part
-            if (lowestY > zoneBottom) {
-                const bottomPart = this.createBodySlice(body, zoneBottom, lowestY);
-                if (bottomPart) newBodies.push(bottomPart);
-            }
-        }
-        
-        // Add new bodies (sliced parts) back to the world
-        if (newBodies.length > 0) {
-            World.add(this.world, newBodies);
-        }
+        // Use ZoneDetection module to handle the physics part
+        const newBodies = ZoneDetection.clearZone(
+            this.world, 
+            zoneIndex, 
+            bodiesInZone, 
+            zoneY, 
+            this.DETECTION_ZONE_HEIGHT
+        );
         
         // Add visual effect for zone clearing
-        this.addClearingVisualEffect(zoneIndex);
+        ZoneDetection.addClearingVisualEffect(zoneIndex);
         
         // Track this zone in the current clear event
         this.currentClearEvent.push(zoneIndex);
@@ -480,99 +247,7 @@ const Game = {
         this.scoreZoneClear(zoneIndex);
         
         // Reset the progress bar for this zone
-        this.updateProgressBar(zoneIndex, 0);
-    },
-    
-    // Score a zone clear with appropriate bonuses
-    scoreZoneClear: function(zoneIndex) {
-        // Increment combo (consecutive clears)
-        this.incrementCombo();
-        
-        // Get base score with difficulty multiplier
-        const baseScore = this.BASE_SCORE_PER_CLEAR * this.difficulty;
-        
-        // Apply height bonus (higher zones = more points)
-        const heightBonus = this.getHeightBonus(zoneIndex);
-        
-        // Apply combo multiplier
-        const comboMultiplier = this.getComboMultiplier();
-        
-        // Calculate total score for this clear
-        const totalPoints = Math.floor(baseScore * heightBonus * comboMultiplier);
-        
-        // Add points to the score
-        this.addPoints(totalPoints);
-        
-        console.log(`Zone ${zoneIndex} cleared! +${totalPoints} points (base:${baseScore}, height:x${heightBonus.toFixed(2)}, combo:x${comboMultiplier})`);
-    },
-    
-    // Create a slice of a body between two y-coordinates
-    createBodySlice: function(originalBody, topY, bottomY) {
-        // This is a simplified approach - in a real game you'd need more accurate geometry
-        
-        // For now, we'll create a rectangle with similar properties to the original
-        const width = Math.max(...originalBody.vertices.map(v => v.x)) - 
-                      Math.min(...originalBody.vertices.map(v => v.x));
-        const height = bottomY - topY;
-        const x = originalBody.position.x;
-        const y = topY + height/2;
-        
-        // Create new body with same properties
-        const slicedBody = Bodies.rectangle(x, y, width, height, {
-            render: { 
-                fillStyle: originalBody.render.fillStyle,
-                strokeStyle: originalBody.render.strokeStyle,
-                lineWidth: originalBody.render.lineWidth
-            },
-            // Preserve any custom properties from original body
-            label: originalBody.label,
-            hasInternalPattern: originalBody.hasInternalPattern
-        });
-        
-        return slicedBody;
-    },
-    
-    // Add visual effect for zone clearing
-    addClearingVisualEffect: function(zoneIndex) {
-        const zoneY = this.PLAY_AREA_Y_OFFSET + zoneIndex * this.DETECTION_ZONE_HEIGHT;
-        
-        // Get the stripe object for this zone
-        const stripe = this.stripeZones[zoneIndex];
-        if (!stripe) return;
-        
-        // Store original color and create flash animation
-        const originalColor = stripe.render.fillStyle;
-        let opacity = 1.0;
-        let flashing = true;
-        
-        // Flash the zone by changing the stripe's color
-        const flashInterval = setInterval(() => {
-            if (!flashing) return;
-            
-            // Alternate between white and original color with fading opacity
-            if (opacity > 0.5) {
-                stripe.render.fillStyle = '#ffffff'; // White flash
-            } else {
-                stripe.render.fillStyle = originalColor; // Return to original
-            }
-            
-            // Reduce opacity
-            opacity -= 0.1;
-            if (opacity <= 0) {
-                clearInterval(flashInterval);
-                flashing = false;
-                stripe.render.fillStyle = originalColor; // Ensure we end on original color
-            }
-        }, 50);
-        
-        // Also flash the progress bar
-        const progressBar = this.progressBars[zoneIndex];
-        if (progressBar) {
-            progressBar.style.backgroundColor = '#ffffff'; // Flash white
-            setTimeout(() => {
-                progressBar.style.backgroundColor = '#000000'; // Return to black
-            }, 200);
-        }
+        ZoneDetection.updateProgressBar(zoneIndex, 0);
     },
 
     // Setup Matter.js event listeners
@@ -605,8 +280,13 @@ const Game = {
                 // Reset current clear event
                 this.currentClearEvent = [];
                 
-                // Check for zone clearing
-                this.checkDetectionZones();
+                // Check for zone clearing using ZoneDetection module
+                ZoneDetection.checkDetectionZones(
+                    this.world,
+                    null, // Current block is already null at this point
+                    ZoneDetection.updateProgressBar.bind(ZoneDetection),
+                    this.clearZone.bind(this)
+                );
                 
                 // If we cleared any zones in this pass, log the event
                 if (this.currentClearEvent.length > 0) {
@@ -619,14 +299,16 @@ const Game = {
                 }
             }
             
-            // Update progress bars continuously while game is running
-            // Even during active block movement
+            // Continuously update progress bars and check zones while game is running
             if (!this.isGameOver) {
-                this.checkDetectionZones();
+                ZoneDetection.checkDetectionZones(
+                    this.world,
+                    this.currentBlock,
+                    ZoneDetection.updateProgressBar.bind(ZoneDetection),
+                    null // No clearing during continuous updates
+                );
             }
         });
-        
-        // No need for additional interval since we're updating on each afterUpdate
     },
 
     // Initialize the score display
@@ -648,6 +330,29 @@ const Game = {
         
         // Update all UI elements
         this.updateScoreDisplay();
+    },
+    
+    // Score a zone clear with appropriate bonuses
+    scoreZoneClear: function(zoneIndex) {
+        // Increment combo (consecutive clears)
+        this.incrementCombo();
+        
+        // Get base score with difficulty multiplier
+        const baseScore = this.BASE_SCORE_PER_CLEAR * this.difficulty;
+        
+        // Apply height bonus (higher zones = more points)
+        const heightBonus = this.getHeightBonus(zoneIndex);
+        
+        // Apply combo multiplier
+        const comboMultiplier = this.getComboMultiplier();
+        
+        // Calculate total score for this clear
+        const totalPoints = Math.floor(baseScore * heightBonus * comboMultiplier);
+        
+        // Add points to the score
+        this.addPoints(totalPoints);
+        
+        console.log(`Zone ${zoneIndex} cleared! +${totalPoints} points (base:${baseScore}, height:x${heightBonus.toFixed(2)}, combo:x${comboMultiplier})`);
     },
     
     // Update all score-related UI elements
