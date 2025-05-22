@@ -4,7 +4,7 @@
 
 ## 在线体验
 
-🎮 [立即体验](https://not-tetris-2-ten.vercel.app/)
+🎮 [立即体验](https://not-tetris-2-wl4d.vercel.app/)
 
 ## 游戏截图
 
